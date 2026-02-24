@@ -727,13 +727,7 @@ function sleep(ms: number): Promise<void> {
 // Variable globale pour suivre l'état de la progress-bar
 let progressBarOpen = false;
 // Dans onMount :
-bcast.on('pluginOpened', (name: string) => { if (name === 'progress-bar') progressBarOpen = true; });
-bcast.on('pluginClosed', (name: string) => { if (name === 'progress-bar') progressBarOpen = false; });
 
-
-// ============================================================
-// PARSE DES RÉSULTATS BRUTS
-// ============================================================
 
 function parseModelResults(results: Record<string, any>) {
 
@@ -971,6 +965,8 @@ onMount(() => {
   // Écoute aussi les interactions Windy (déplacement carte, changement overlay)
   bcast.on('map:movestart', resetActivityTimer);
   bcast.on('rqstOpen', resetActivityTimer);
+  bcast.on('pluginOpened', (name: string) => { if (name === 'progress-bar') progressBarOpen = true; });
+  bcast.on('pluginClosed', (name: string) => { if (name === 'progress-bar') progressBarOpen = false; });
 });
 
 onDestroy(() => {
@@ -982,6 +978,8 @@ onDestroy(() => {
 
   bcast.off('map:movestart', resetActivityTimer);
   bcast.off('rqstOpen', resetActivityTimer);
+bcast.off('pluginOpened', resetActivityTimer);
+bcast.off('pluginClosed', resetActivityTimer);
 });
 
 function isUserIdle(): boolean {
@@ -1612,9 +1610,6 @@ let interval;
 
 
 
-
-
-onDestroy(() => { stopCOM(); stopTCP(); });
 
 
 
