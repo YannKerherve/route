@@ -966,9 +966,14 @@ onMount(() => {
   // Écoute aussi les interactions Windy (déplacement carte, changement overlay)
   bcast.on('map:movestart', resetActivityTimer);
   bcast.on('rqstOpen', resetActivityTimer);
-  bcast.on('pluginOpened', (name: string) => { if (name === 'progress-bar') progressBarOpen = true; });
-  bcast.on('pluginClosed', (name: string) => { if (name === 'progress-bar') progressBarOpen = false; });
+  bcast.on('pluginOpened', onPluginOpened);
+  bcast.on('pluginClosed', onPluginClosed);
 });
+
+
+function onPluginOpened(name: string) { if (name === 'progress-bar') progressBarOpen = true; }
+function onPluginClosed(name: string) { if (name === 'progress-bar') progressBarOpen = false; }
+
 
 onDestroy(() => {
   stopCOM();
@@ -979,13 +984,17 @@ onDestroy(() => {
 
   bcast.off('map:movestart', resetActivityTimer);
   bcast.off('rqstOpen', resetActivityTimer);
-bcast.off('pluginOpened', resetActivityTimer);
-bcast.off('pluginClosed', resetActivityTimer);
+bcast.off('pluginOpened', onPluginOpened);
+bcast.off('pluginClosed', onPluginClosed);
 
 if (tcpInterval) {
         clearInterval(tcpInterval);
         tcpInterval = null;
     }
+if (aisCleanupInterval) {
+  clearInterval(aisCleanupInterval);
+  aisCleanupInterval = null;
+}
 });
 
 function isUserIdle(): boolean {
@@ -1589,17 +1598,23 @@ function projectPoint(lat: number, lon: number, cog: number, distNm: number): [n
     return [φ2 * 180 / Math.PI, λ2 * 180 / Math.PI];
 }
 
+
+
+
 /* ===================== NETTOYAGE ===================== */
 
-setInterval(() => {
-    const now = Date.now();
-    for (const [mmsi, t] of aisTargets) {
-        if (now - t.lastUpdate > 120_000) {
-            if (t.marker) aisLayer.removeLayer(t.marker);
-            if (t.vector) aisLayer.removeLayer(t.vector);
-            aisTargets.delete(mmsi);
-        }
+let aisCleanupInterval: number | null = null;
+
+// Au moment de l'initialisation (dans onMount ou à la racine du script) :
+aisCleanupInterval = setInterval(() => {
+  const now = Date.now();
+  for (const [mmsi, t] of aisTargets) {
+    if (now - t.lastUpdate > 120_000) {
+      if (t.marker) aisLayer.removeLayer(t.marker);
+      if (t.vector) aisLayer.removeLayer(t.vector);
+      aisTargets.delete(mmsi);
     }
+  }
 }, 30_000);
 
 /*------------------------------------- AIS ------------------------------------------*/
@@ -1662,7 +1677,7 @@ function hidePlugin() {
 // ET ajoute onMount juste avant onDestroy
 // ============================================================
 
-onMount(() => {
+/*onMount(() => {
   setTimeout(() => {
     console.log('%c[PROBE] interpolator:', 'color:cyan', interpolator);
     console.log('%c[PROBE] keys:', 'color:cyan', Object.keys(interpolator ?? {}));
@@ -1678,7 +1693,7 @@ onMount(() => {
     }
   }, 5000);
 });
-
+*/
 
 
 
