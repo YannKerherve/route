@@ -4,7 +4,7 @@ const config: ExternalPluginConfig = {
     name: 'windy-plugin-route',
     version: '0.0.1',
     icon: '🗺️',
-    title: 'Route',
+    title: 'Boat Route Tracker',
     description: 'Export your CSV from tactics and display it on windy',
     author: 'Yann Kerherve (ENSM)',
     repository: 'https://github.com/YannKerherve/route',
