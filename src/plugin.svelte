@@ -19,8 +19,8 @@
         on:click={() => fileInput.click()}
     >
         <span>📂 Load CSV file</span>
-        <span class="kbt-hint">Drag & drop or click (Tactics / SimSail)</span>
-       <input bind:this={fileInput} type="file" accept=".csv" multiple on:change={handleFileChange} style="display: none;" />
+        <span class="kbt-hint">Drag & drop or click (Tactics / SimSail / Adrena)</span>
+       <input bind:this={fileInput} type="file" accept=".csv,.xlsx,.xls" multiple on:change={handleFileChange} style="display: none;" />
     </div>
 
     {#if !isMinimized}
@@ -50,6 +50,7 @@
                     <option value="auto">Auto</option>
                     <option value="tactics">Tactics</option>
                     <option value="simsail">SimSail</option>
+                    <option value="adrena">Adrena</option>
                 </select>
             </div>
 
@@ -129,6 +130,15 @@
         const dec = deg + min / 60;
         return (m[2].toUpperCase() === 'S' || m[2].toUpperCase() === 'W') ? -dec : dec;
     }
+function parseLatLonAdrena(raw) {
+    // Format: "47°49,480 N" ou "003°56,150 W"
+    if (!raw) return null;
+    const clean = raw.trim();
+    const m = clean.match(/^(\d+)[°\s]+(\d+[,\.]\d+)\s*([NSEW])$/i);
+    if (!m) return null;
+    const dec = parseFloat(m[1]) + parseFloat(m[2].replace(',', '.')) / 60;
+    return (m[3].toUpperCase() === 'S' || m[3].toUpperCase() === 'W') ? -dec : dec;
+}
 
     function parseTimestampTactics(raw) {
         const m = raw?.trim().match(/^([a-zA-Z]+ \d+),\s*(\d{1,2}):(\d{2})$/);
@@ -145,6 +155,55 @@
         const year = new Date().getFullYear();
         return new Date(year, month, day, parseInt(m[3]), parseInt(m[4]), parseInt(m[5])).getTime();
     }
+function parseTimestampAdrena(raw) {
+    // Format: "18/04 13:00" ou "18/04 13:00:00"
+    const m = raw?.trim().match(/^(\d{2})\/(\d{2})\s+(\d{2}):(\d{2})/);
+    if (!m) return null;
+    const year = new Date().getFullYear();
+    return new Date(year, parseInt(m[2]) - 1, parseInt(m[1]),
+                    parseInt(m[3]), parseInt(m[4]), 0).getTime();
+}
+function parseAdrenaXLSX(data) {
+    // data = tableau de lignes (rows), chaque ligne = tableau de cellules
+    // Ligne 0 = headers, lignes 1+ = données
+    const waypoints = [];
+
+    for (let j = 1; j < data.length; j++) {
+        const c = data[j];
+        const latRaw  = c[5]  != null ? String(c[5])  : null;
+        const lonRaw  = c[6]  != null ? String(c[6])  : null;
+        const timeRaw = c[1]  != null ? String(c[1])  : null;
+
+        const lat = parseLatLonAdrena(latRaw);
+        const lon = parseLatLonAdrena(lonRaw);
+        const time = parseTimestampAdrena(timeRaw);
+
+        if (lat === null || lon === null || time === null) continue;
+
+        const num = (v) => {
+            if (v == null || v === '---') return 0;
+            const n = parseFloat(String(v).replace(',', '.'));
+            return isNaN(n) ? 0 : n;
+        };
+
+        waypoints.push({
+            lat, lon, time,
+            sog: num(c[13]),
+            cog: num(c[14]),
+            tws: num(c[22]),
+            twa: num(c[23]),
+            twd: num(c[61]),
+            cs:  num(c[67]),
+            cd:  num(c[68]),
+            htsgw: num(c[76]),   // Hauteur mer vent
+            wvdir: num(c[77]),   // Direction mer vent
+            twh:   num(c[83]),   // Hauteur houle
+            pwd:   num(c[84]),   // Direction houle
+            label: timeRaw
+        });
+    }
+    return waypoints;
+}
 
     function detectFormat(header) {
         const lower = header.map(h => h.toLowerCase());
@@ -236,16 +295,32 @@
 
     // --- GESTION DES FICHIERS ---
 
-    async function handleFiles(files) {
-        error = "";
-        for (const file of files) {
-            try {
-                const { waypoints, format } = await parseFile(file);
-                
-                if (waypoints.length === 0) {
-                    error = `${file.name}: No valid data`;
-                    continue;
-                }
+async function handleFiles(files) {
+    error = "";
+    for (const file of files) {
+        try {
+            let waypoints = [];
+            let format = 'unknown';
+
+            if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+                // Lecture XLSX avec SheetJS
+                const XLSX = await import('https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs');
+                const ab = await file.arrayBuffer();
+                const wb = XLSX.read(ab, { type: 'array' });
+                const ws = wb.Sheets[wb.SheetNames[0]];
+                const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
+                waypoints = parseAdrenaXLSX(data);
+                format = 'adrena';
+            } else {
+                const result = await parseFile(file);
+                waypoints = result.waypoints;
+                format = result.format;
+            }
+
+            if (waypoints.length === 0) {
+                error = `${file.name}: No valid data`;
+                continue;
+            }
 
                 const colorIdx = routes.length % COLORS.length;
                 const route = {
