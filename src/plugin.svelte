@@ -494,10 +494,11 @@ async function handleFiles(files) {
      */
     function createWindBarb(lat, lon, direction, speedKnots) {
         // Arrondir au 5kt supérieur
+
         const roundedSpeed = Math.ceil(speedKnots / 5) * 5;
         
         // La barbule pointe d'où vient le vent, donc on ajoute 180°
-        const rotation = (direction + 180) % 360;
+        const rotation = (direction) % 360;
         
         // Calcul des barres
         const triangles = Math.floor(roundedSpeed / 50);
