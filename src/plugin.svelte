@@ -419,50 +419,25 @@
             return isNaN(n) ? 0 : n;
         };
 
-        // LOG DEBUG - affiche les transitions autour du changement string→Date
-        let _logStr = 0, _logDate = 0, _wasStr = true;
-
         for (let j = 1; j < data.length; j++) {
             const c = data[j];
             const latRaw  = c[5]  != null ? String(c[5])  : null;
             const lonRaw  = c[6]  != null ? String(c[6])  : null;
 
+            // Adrena produit deux formats selon si la date change de mois :
+            // - string "DD/MM HH:MM" pour les premières lignes
+            // - serial Excel numérique (nb de jours depuis 1899-12-30) ensuite
+            //   SheetJS sans cellDates:true retourne ce serial comme un NUMBER brut.
+            // Conversion serial → timestamp JS : (serial - 25569) * 86400000
             const rawCell = c[1];
-            const isDate  = rawCell instanceof Date;
-
-            // LOG : dernières lignes string avant bascule
-            if (!isDate && _wasStr && _logStr < 5) {
-                console.log(`[Adrena] row ${j} STRING brute: "${rawCell}"`);
-                _logStr++;
-            }
-            // LOG : signale la bascule
-            if (isDate && _wasStr) {
-                console.log(`[Adrena] *** BASCULE string→Date à row ${j} ***`);
-                _wasStr = false;
-            }
-            // LOG : premières Date natives
-            if (isDate && _logDate < 5) {
-                const _d = rawCell as Date;
-                console.log(`[Adrena] row ${j} DATE brute ISO: ${_d.toISOString()} | month=${_d.getUTCMonth()+1} day=${_d.getUTCDate()}`);
-                _logDate++;
-            }
-
             let time: number | null = null;
-            if (rawCell instanceof Date) {
-                const d = rawCell;
-                const fixed = new Date(Date.UTC(
-                    d.getUTCFullYear(),
-                    d.getUTCDate() - 1,
-                    d.getUTCMonth() + 1,
-                    d.getUTCHours(),
-                    d.getUTCMinutes(),
-                    d.getUTCSeconds()
-                ));
-                if (_logDate <= 5) console.log(`[Adrena] row ${j} DATE fixée ISO: ${fixed.toISOString()}`);
-                time = applyOffset(fixed.getTime());
+            if (typeof rawCell === 'number') {
+                // Serial Excel → ms UTC
+                time = applyOffset(Math.round((rawCell - 25569) * 86400000));
+            } else if (rawCell instanceof Date) {
+                time = applyOffset(rawCell.getTime());
             } else if (rawCell != null) {
                 time = applyOffset(parseTimestampAdrena(String(rawCell)));
-                if (_logStr <= 5) console.log(`[Adrena] row ${j} STRING parsée → ${time ? new Date(time).toISOString() : 'null'}`);
             }
 
             const timeRaw = rawCell != null ? String(rawCell) : null;
@@ -470,10 +445,7 @@
             const lat  = parseLatLonAdrena(latRaw);
             const lon  = parseLatLonAdrena(lonRaw);
 
-            if (lat === null || lon === null || time === null) {
-                console.log(`[Adrena] row ${j} REJETÉ lat=${lat} lon=${lon} time=${time} raw="${rawCell}"`);
-                continue;
-            }
+            if (lat === null || lon === null || time === null) continue;
 
             waypoints.push({
                 lat, lon, time,
