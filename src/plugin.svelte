@@ -423,11 +423,23 @@
             const c = data[j];
             const latRaw  = c[5]  != null ? String(c[5])  : null;
             const lonRaw  = c[6]  != null ? String(c[6])  : null;
-            const timeRaw = c[1]  != null ? String(c[1])  : null;
+
+            // SheetJS retourne un objet Date JS quand la cellule est un serial
+            // datetime Excel (cas typique dès qu'Adrena change de mois),
+            // et une string pour les premières lignes en texte brut.
+            const rawCell = c[1];
+            let time: number | null = null;
+            if (rawCell instanceof Date) {
+                // Date native : déjà en UTC, on applique juste le décalage TZ
+                time = applyOffset(rawCell.getTime());
+            } else if (rawCell != null) {
+                time = applyOffset(parseTimestampAdrena(String(rawCell)));
+            }
+
+            const timeRaw = rawCell != null ? String(rawCell) : null;
 
             const lat  = parseLatLonAdrena(latRaw);
             const lon  = parseLatLonAdrena(lonRaw);
-            const time = applyOffset(parseTimestampAdrena(timeRaw));
 
             if (lat === null || lon === null || time === null) continue;
 
