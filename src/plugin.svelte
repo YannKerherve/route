@@ -88,6 +88,19 @@
                 <button class="kbt-btn-remove" on:click={() => removeRoute(idx)}>🗑</button>
             </div>
 
+            <!-- Sélecteur de couleur -->
+            <div class="kbt-color-picker">
+                {#each COLORS as color}
+                    <button
+                        class="kbt-color-swatch"
+                        class:kbt-color-swatch--active={route.color === color}
+                        style="background: {color};"
+                        on:click={() => changeRouteColor(idx, color)}
+                        title={color}
+                    ></button>
+                {/each}
+            </div>
+
             <div class="kbt-route-info">
                 <span class="kbt-meta">{route.waypoints.length} pts</span>
                 <select bind:value={route.format} on:change={() => reloadRoute(idx)} class="kbt-select-format">
@@ -141,11 +154,11 @@
     let localTzName = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
     // Gestion des fuseaux horaires
-    let csvTimezoneOffset = 0;   // fuseau déclaré/détecté du CSV, en heures
-    let manualOffset = 0;        // correction manuelle supplémentaire, en heures
-    let detectedTz = null;       // null si pas détecté automatiquement
+    let csvTimezoneOffset = 0;
+    let manualOffset = 0;
+    let detectedTz = null;
 
-    const tzOptions = Array.from({ length: 25 }, (_, i) => i - 12); // -12 à +12
+    const tzOptions = Array.from({ length: 25 }, (_, i) => i - 12);
 
     // Calques Leaflet
     let routeLayers = [];
@@ -154,42 +167,40 @@
     let unsubTime;
 
     // --- CONFIGURATION ---
-    const COLORS = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c', '#e67e22'];
+    // Portefeuille de 12 couleurs
+    const COLORS = [
+        '#e74c3c', // rouge
+        '#3498db', // bleu
+        '#2ecc71', // vert
+        '#f39c12', // orange
+        '#9b59b6', // violet
+        '#1abc9c', // turquoise
+        '#e67e22', // orange foncé
+        '#f1c40f', // jaune
+        '#e91e8c', // rose
+        '#00bcd4', // cyan
+        '#8bc34a', // vert clair
+        '#ffffff', // blanc
+    ];
 
     // -------------------------------------------------------------------
     // GESTION DU TEMPS
     // -------------------------------------------------------------------
 
-    /**
-     * Retourne le décalage total CSV→UTC en millisecondes.
-     * Un CSV en UTC+1 a ses timestamps décalés de +1h par rapport à UTC,
-     * donc on soustrait 1h pour ramener en UTC absolu.
-     */
     function totalOffsetMs(): number {
         return (csvTimezoneOffset + manualOffset) * 3_600_000;
     }
 
-    /**
-     * Applique la correction de fuseau sur un timestamp parsé.
-     * Le timestamp brut issu du CSV est supposé être en heure locale CSV.
-     * On le ramène en UTC absolu pour cohérence avec Windy.
-     */
     function applyOffset(rawTs: number | null): number | null {
         if (rawTs === null) return null;
         return rawTs - totalOffsetMs();
     }
 
-    /**
-     * Formate un timestamp UTC (ms) en heure locale CSV pour affichage.
-     */
     function toCsvDisplayTime(tsUtcMs: number): string {
         const shifted = new Date(tsUtcMs + totalOffsetMs());
         return shifted.toISOString().slice(11, 19);
     }
 
-    /**
-     * Met à jour les trois lignes horaires dans le panneau.
-     */
     function updateTimeDisplay(ts: number): void {
         const d = new Date(ts);
 
@@ -204,23 +215,39 @@
             + (csvTimezoneOffset + manualOffset) + ')';
     }
 
-    /**
-     * Appelé quand l'utilisateur change le fuseau CSV ou le décalage manuel.
-     * Recharge toutes les routes pour recalculer les timestamps corrigés.
-     */
     function onTimezoneChange(): void {
         routes.forEach((_, idx) => reloadRoute(idx));
         updateTimeDisplay(store.get('timestamp'));
     }
 
     // -------------------------------------------------------------------
-    // DÉTECTION DU FUSEAU DANS LES HEADERS
+    // CORRECTION CHANGEMENT DE MOIS / ANNÉE
     // -------------------------------------------------------------------
 
     /**
-     * Cherche une mention de fuseau dans les en-têtes CSV.
-     * Exemples reconnus : "UTC+1", "UTC+02:00", "GMT-3", "GMT+5:30" (→ 5)
+     * Corrige les timestamps quand on franchit un changement de mois ou d'année.
+     * Si un waypoint N+1 est chronologiquement avant N, on ajoute un mois
+     * jusqu'à ce que la séquence soit cohérente.
      */
+    function fixTimestampRollover(waypoints: any[]): void {
+        for (let i = 1; i < waypoints.length; i++) {
+            while (waypoints[i].time !== null && waypoints[i - 1].time !== null
+                   && waypoints[i].time < waypoints[i - 1].time) {
+                waypoints[i].time = addOneMonth(waypoints[i].time);
+            }
+        }
+    }
+
+    function addOneMonth(ts: number): number {
+        const d = new Date(ts);
+        d.setUTCMonth(d.getUTCMonth() + 1);
+        return d.getTime();
+    }
+
+    // -------------------------------------------------------------------
+    // DÉTECTION DU FUSEAU DANS LES HEADERS
+    // -------------------------------------------------------------------
+
     function detectTimezone(header: string[]): number | null {
         const tzRe = /(?:UTC|GMT)([+-]\d{1,2})(?::\d{2})?/i;
         for (const h of header) {
@@ -298,7 +325,6 @@
         const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
         const header = lines[0].split(';');
 
-        // Détection automatique du fuseau dans les headers
         const tz = detectTimezone(header);
         if (tz !== null) {
             detectedTz = tz;
@@ -330,6 +356,8 @@
                 });
             }
         }
+
+        fixTimestampRollover(waypoints);
         return waypoints;
     }
 
@@ -370,11 +398,12 @@
                 });
             }
         }
+
+        fixTimestampRollover(waypoints);
         return waypoints;
     }
 
     function parseAdrenaXLSX(data: any[][]): any[] {
-        // Ligne 0 = headers, lignes 1+ = données
         const header = (data[0] || []).map(h => h != null ? String(h) : '');
 
         const tz = detectTimezone(header);
@@ -418,6 +447,8 @@
                 label: timeRaw
             });
         }
+
+        fixTimestampRollover(waypoints);
         return waypoints;
     }
 
@@ -456,7 +487,6 @@
                 let waypoints = [];
                 let format = 'unknown';
 
-                // Réinitialise la détection pour chaque nouveau fichier
                 detectedTz = null;
 
                 if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
@@ -534,6 +564,14 @@
         routeLayers = routeLayers.filter((_, i) => i !== idx);
         boatLayers  = boatLayers.filter((_, i) => i !== idx);
         barbLayers  = barbLayers.filter((_, i) => i !== idx);
+    }
+
+    function changeRouteColor(idx: number, color: string) {
+        routes[idx] = { ...routes[idx], color };
+        routes = [...routes]; // force reactivity
+        drawFullRoute(idx);
+        updateBoatPosition(store.get('timestamp'));
+        updateBarbs(idx);
     }
 
     async function reloadRoute(idx: number) {
@@ -661,7 +699,6 @@
                 iconAnchor: [15, 15]
             });
 
-            // Affiche l'heure CSV dans le popup
             const csvTimeStr = toCsvDisplayTime(ts);
             L.marker([current.lat, current.lon], { icon: boatIcon })
                 .addTo(boatLayers[idx])
@@ -1060,6 +1097,39 @@
         cursor: pointer;
         font-size: 12px;
         &:hover { background: rgba(231, 76, 60, 0.4); }
+    }
+
+    /* ---- Sélecteur de couleur ---- */
+    .kbt-color-picker {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        margin-bottom: 8px;
+        padding: 6px;
+        background: rgba(0, 0, 0, 0.25);
+        border-radius: 6px;
+        border: 1px solid #334;
+    }
+
+    .kbt-color-swatch {
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        border: 2px solid transparent;
+        cursor: pointer;
+        padding: 0;
+        transition: transform 0.15s, border-color 0.15s;
+
+        &:hover {
+            transform: scale(1.25);
+            border-color: rgba(255, 255, 255, 0.6);
+        }
+
+        &--active {
+            border-color: white;
+            transform: scale(1.2);
+            box-shadow: 0 0 0 1px rgba(0,0,0,0.5);
+        }
     }
 
     .kbt-route-info {
