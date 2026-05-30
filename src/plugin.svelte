@@ -425,13 +425,26 @@
             const lonRaw  = c[6]  != null ? String(c[6])  : null;
 
             // SheetJS retourne un objet Date JS quand la cellule est un serial
-            // datetime Excel (cas typique dès qu'Adrena change de mois),
-            // et une string pour les premières lignes en texte brut.
+            // datetime Excel (dès qu'Adrena change de mois), et une string
+            // pour les premières lignes en texte brut (format "DD/MM HH:MM").
+            //
+            // BUG ADRENA : le serial Excel est encodé avec mois et jour inversés
+            // (Excel interprète "06/01/2026" comme Jan 6 au lieu de Jun 1).
+            // On doit donc swapper month↔day sur l'objet Date reçu.
             const rawCell = c[1];
             let time: number | null = null;
             if (rawCell instanceof Date) {
-                // Date native : déjà en UTC, on applique juste le décalage TZ
-                time = applyOffset(rawCell.getTime());
+                // Swap mois/jour : SheetJS donne Jan 6 → on veut Jun 1
+                const d = rawCell;
+                const fixed = new Date(Date.UTC(
+                    d.getUTCFullYear(),
+                    d.getUTCDate() - 1,      // le "jour" Excel est en réalité le mois (1-based → 0-based)
+                    d.getUTCMonth() + 1,     // le "mois" Excel (0-based) est en réalité le jour
+                    d.getUTCHours(),
+                    d.getUTCMinutes(),
+                    d.getUTCSeconds()
+                ));
+                time = applyOffset(fixed.getTime());
             } else if (rawCell != null) {
                 time = applyOffset(parseTimestampAdrena(String(rawCell)));
             }
