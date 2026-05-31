@@ -309,11 +309,11 @@
                         parseInt(m[3]), parseInt(m[4]), parseInt(m[5]));
     }
 
-    function parseTimestampAdrena(raw: string): number | null {
+    function parseTimestampAdrena(raw: string, year?: number): number | null {
         const m = raw?.trim().match(/^(\d{2})\/(\d{2})\s+(\d{2}):(\d{2})/);
         if (!m) return null;
-        const year = new Date().getFullYear();
-        return Date.UTC(year, parseInt(m[2]) - 1, parseInt(m[1]),
+        const y = year ?? new Date().getFullYear();
+        return Date.UTC(y, parseInt(m[2]) - 1, parseInt(m[1]),
                         parseInt(m[3]), parseInt(m[4]), 0);
     }
 
@@ -419,25 +419,51 @@
             return isNaN(n) ? 0 : n;
         };
 
+        // Déduire l'année des lignes string "DD/MM HH:MM" (sans année) depuis
+        // le premier serial numérique trouvé dans le fichier.
+        // - Si le mois de départ (string) > mois du premier serial → la course
+        //   a franchi une fin d'année → strings = année du serial - 1
+        // - Sinon → même année que le serial
+        // - Si aucun serial dans le fichier → année courante (fallback)
+        let stringYear: number = new Date().getFullYear();
+        for (let k = 1; k < data.length; k++) {
+            const cell = data[k][1];
+            if (typeof cell === 'number') {
+                const firstSerialMs  = Math.round((cell - 25569) * 86400000);
+                const firstSerialDate = new Date(firstSerialMs);
+                const serialYear  = firstSerialDate.getUTCFullYear();
+                const serialMonth = firstSerialDate.getUTCMonth() + 1; // 1-12
+                // Mois de la toute première ligne string
+                const firstStrCell = data[1][1];
+                if (typeof firstStrCell === 'string') {
+                    const mStr = firstStrCell.trim().match(/^(\d{2})\/(\d{2})/);
+                    if (mStr) {
+                        const startMonth = parseInt(mStr[2]); // DD/MM → mStr[2] = MM
+                        stringYear = startMonth > serialMonth ? serialYear - 1 : serialYear;
+                    }
+                } else {
+                    stringYear = serialYear;
+                }
+                break;
+            }
+        }
+
         for (let j = 1; j < data.length; j++) {
             const c = data[j];
             const latRaw  = c[5]  != null ? String(c[5])  : null;
             const lonRaw  = c[6]  != null ? String(c[6])  : null;
 
-            // Adrena produit deux formats selon si la date change de mois :
-            // - string "DD/MM HH:MM" pour les premières lignes
-            // - serial Excel numérique (nb de jours depuis 1899-12-30) ensuite
-            //   SheetJS sans cellDates:true retourne ce serial comme un NUMBER brut.
-            // Conversion serial → timestamp JS : (serial - 25569) * 86400000
+            // Adrena produit deux formats :
+            // - string "DD/MM HH:MM" sans année → on utilise stringYear déduite ci-dessus
+            // - serial Excel numérique → conversion (serial - 25569) * 86400000
             const rawCell = c[1];
             let time: number | null = null;
             if (typeof rawCell === 'number') {
-                // Serial Excel → ms UTC
                 time = applyOffset(Math.round((rawCell - 25569) * 86400000));
             } else if (rawCell instanceof Date) {
                 time = applyOffset(rawCell.getTime());
             } else if (rawCell != null) {
-                time = applyOffset(parseTimestampAdrena(String(rawCell)));
+                time = applyOffset(parseTimestampAdrena(String(rawCell), stringYear));
             }
 
             const timeRaw = rawCell != null ? String(rawCell) : null;
