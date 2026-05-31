@@ -131,6 +131,93 @@
         </div>
     {/each}
 
+    <!-- ═══════════════════════════════════════════════
+         BLOC POINTS MANUELS
+    ═══════════════════════════════════════════════ -->
+    <div class="kbt-section">
+        <div class="kbt-section-header" on:click={() => showPointsPanel = !showPointsPanel}>
+            <span>📍 Points manuels</span>
+            <span>{showPointsPanel ? '▲' : '▼'}</span>
+        </div>
+        {#if showPointsPanel}
+            <div class="kbt-point-form">
+                <div class="kbt-point-row">
+                    <label class="kbt-point-label">Lat</label>
+                    <input class="kbt-point-input" bind:value={ptLatDeg}  placeholder="48"      type="number" min="0"   max="90" />
+                    <span class="kbt-point-sep">°</span>
+                    <input class="kbt-point-input" bind:value={ptLatMin}  placeholder="12.345"  type="number" min="0"   max="60" step="0.001" />
+                    <select class="kbt-point-ns" bind:value={ptLatNS}>
+                        <option>N</option><option>S</option>
+                    </select>
+                </div>
+                <div class="kbt-point-row">
+                    <label class="kbt-point-label">Lon</label>
+                    <input class="kbt-point-input" bind:value={ptLonDeg}  placeholder="002"     type="number" min="0"   max="180" />
+                    <span class="kbt-point-sep">°</span>
+                    <input class="kbt-point-input" bind:value={ptLonMin}  placeholder="34.567"  type="number" min="0"   max="60" step="0.001" />
+                    <select class="kbt-point-ns" bind:value={ptLonEW}>
+                        <option>W</option><option>E</option>
+                    </select>
+                </div>
+                <input class="kbt-point-name-input" bind:value={ptName} placeholder="Nom du point (optionnel)" />
+                <!-- Sélecteur couleur -->
+                <div class="kbt-color-picker" style="margin:6px 0 8px">
+                    {#each COLORS as color}
+                        <button
+                            class="kbt-color-swatch"
+                            class:kbt-color-swatch--active={ptColor === color}
+                            style="background:{color}"
+                            on:click={() => ptColor = color}
+                        ></button>
+                    {/each}
+                </div>
+                <button class="kbt-btn-fit" on:click={addManualPoint}>➕ Ajouter</button>
+                {#if ptError}<div class="kbt-error">{ptError}</div>{/if}
+            </div>
+
+            {#each manualPoints as pt, idx}
+                <div class="kbt-route-card" style="margin-top:6px">
+                    <div class="kbt-route-header">
+                        <input type="checkbox" bind:checked={pt.visible} on:change={() => togglePoint(idx)} />
+                        <span class="kbt-route-name" style="color:{pt.color}">{pt.name}</span>
+                        <button class="kbt-btn-remove" on:click={() => removePoint(idx)}>🗑</button>
+                    </div>
+                    <div style="font-size:10px;color:#889;padding:0 2px 4px">
+                        {formatDMS(pt.lat, 'NS')} — {formatDMS(pt.lon, 'EW')}
+                    </div>
+                    <div class="kbt-color-picker">
+                        {#each COLORS as color}
+                            <button
+                                class="kbt-color-swatch"
+                                class:kbt-color-swatch--active={pt.color === color}
+                                style="background:{color}"
+                                on:click={() => changePointColor(idx, color)}
+                            ></button>
+                        {/each}
+                    </div>
+                </div>
+            {/each}
+        {/if}
+    </div>
+
+    <!-- ═══════════════════════════════════════════════
+         BLOC DST
+    ═══════════════════════════════════════════════ -->
+    <div class="kbt-section">
+        <div class="kbt-section-header" on:click={() => showDstPanel = !showDstPanel}>
+            <span>🚢 DST</span>
+            <span>{showDstPanel ? '▲' : '▼'}</span>
+        </div>
+        {#if showDstPanel}
+            <div style="padding:6px 4px">
+                <label class="kbt-checkbox">
+                    <input type="checkbox" bind:checked={showDst} on:change={toggleDst} />
+                    <span>Afficher les DST (Ouessant + Calvados)</span>
+                </label>
+            </div>
+        {/if}
+    </div>
+
     {/if}
 </div>
 
@@ -419,26 +506,50 @@
             return isNaN(n) ? 0 : n;
         };
 
-        // Déduire l'année des lignes string "DD/MM HH:MM" (sans année) depuis
-        // le premier serial numérique trouvé dans le fichier.
-        // - Si le mois de départ (string) > mois du premier serial → la course
-        //   a franchi une fin d'année → strings = année du serial - 1
-        // - Sinon → même année que le serial
-        // - Si aucun serial dans le fichier → année courante (fallback)
+        // Adrena XLSX : deux formats de date selon les lignes
+        //
+        // 1) String "DD/MM HH:MM" (premières lignes, sans année)
+        //    → on déduit l'année depuis le premier serial (voir ci-dessous)
+        //
+        // 2) Serial Excel numérique (dès qu'un changement de mois survient)
+        //    → SheetJS retourne un NUMBER brut (nb de jours depuis 1899-12-30)
+        //    → MAIS Adrena stocke la date en DD/MM dans la cellule texte source,
+        //      et Excel l'interprète en MM/DD quand il crée le serial.
+        //      Résultat : le serial représente mois et jour INVERSÉS.
+        //    → Correction : après conversion standard, on swap month↔day.
+        //
+        // Fonction de conversion serial → timestamp avec swap mois/jour
+        function adrenaSerialToMs(serial: number): number {
+            const raw = new Date(Math.round((serial - 25569) * 86400000));
+            // swap : raw.getUTCMonth()+1 est en réalité le jour,
+            //        raw.getUTCDate()    est en réalité le mois (1-based)
+            const fixed = new Date(Date.UTC(
+                raw.getUTCFullYear(),
+                raw.getUTCDate() - 1,      // vrai mois (0-based)
+                raw.getUTCMonth() + 1,     // vrai jour
+                raw.getUTCHours(),
+                raw.getUTCMinutes(),
+                raw.getUTCSeconds()
+            ));
+            return fixed.getTime();
+        }
+
+        // Déduire l'année pour les strings : chercher le premier serial,
+        // le convertir (avec swap), et comparer son mois au mois de départ.
+        // Si mois départ > mois serial → changement d'année → stringYear = serialYear - 1
         let stringYear: number = new Date().getFullYear();
         for (let k = 1; k < data.length; k++) {
             const cell = data[k][1];
             if (typeof cell === 'number') {
-                const firstSerialMs  = Math.round((cell - 25569) * 86400000);
-                const firstSerialDate = new Date(firstSerialMs);
-                const serialYear  = firstSerialDate.getUTCFullYear();
-                const serialMonth = firstSerialDate.getUTCMonth() + 1; // 1-12
-                // Mois de la toute première ligne string
+                const firstMs   = adrenaSerialToMs(cell);
+                const firstDate = new Date(firstMs);
+                const serialYear  = firstDate.getUTCFullYear();
+                const serialMonth = firstDate.getUTCMonth() + 1;
                 const firstStrCell = data[1][1];
                 if (typeof firstStrCell === 'string') {
-                    const mStr = firstStrCell.trim().match(/^(\d{2})\/(\d{2})/);
+                    const mStr = firstStrCell.trim().match(/^\d{2}\/(\d{2})/);
                     if (mStr) {
-                        const startMonth = parseInt(mStr[2]); // DD/MM → mStr[2] = MM
+                        const startMonth = parseInt(mStr[1]);
                         stringYear = startMonth > serialMonth ? serialYear - 1 : serialYear;
                     }
                 } else {
@@ -453,13 +564,10 @@
             const latRaw  = c[5]  != null ? String(c[5])  : null;
             const lonRaw  = c[6]  != null ? String(c[6])  : null;
 
-            // Adrena produit deux formats :
-            // - string "DD/MM HH:MM" sans année → on utilise stringYear déduite ci-dessus
-            // - serial Excel numérique → conversion (serial - 25569) * 86400000
             const rawCell = c[1];
             let time: number | null = null;
             if (typeof rawCell === 'number') {
-                time = applyOffset(Math.round((rawCell - 25569) * 86400000));
+                time = applyOffset(adrenaSerialToMs(rawCell));
             } else if (rawCell instanceof Date) {
                 time = applyOffset(rawCell.getTime());
             } else if (rawCell != null) {
@@ -912,11 +1020,219 @@
         });
     });
 
+    // ─── POINTS MANUELS ───────────────────────────────────────
+    let showPointsPanel = false;
+    let manualPoints = [];
+    let pointLayers  = [];
+
+    // Formulaire
+    let ptLatDeg = '', ptLatMin = '', ptLatNS = 'N';
+    let ptLonDeg = '', ptLonMin = '', ptLonEW = 'W';
+    let ptName   = '';
+    let ptColor  = COLORS[0];
+    let ptError  = '';
+
+    function parseDMtoDD(deg: string, min: string, hem: string): number | null {
+        const d = parseFloat(deg);
+        const m = parseFloat(min);
+        if (isNaN(d) || isNaN(m)) return null;
+        const dd = d + m / 60;
+        return (hem === 'S' || hem === 'W') ? -dd : dd;
+    }
+
+    function formatDMS(dd: number, axis: 'NS' | 'EW'): string {
+        const abs  = Math.abs(dd);
+        const deg  = Math.floor(abs);
+        const min  = ((abs - deg) * 60).toFixed(3);
+        const hem  = axis === 'NS' ? (dd >= 0 ? 'N' : 'S') : (dd >= 0 ? 'E' : 'W');
+        return `${deg}° ${min} ${hem}`;
+    }
+
+    function addManualPoint() {
+        ptError = '';
+        const lat = parseDMtoDD(String(ptLatDeg), String(ptLatMin), ptLatNS);
+        const lon = parseDMtoDD(String(ptLonDeg), String(ptLonMin), ptLonEW);
+        if (lat === null || lon === null) {
+            ptError = 'Coordonnées invalides';
+            return;
+        }
+        const name  = ptName.trim() || `Point ${manualPoints.length + 1}`;
+        const color = ptColor;
+        const pt    = { lat, lon, name, color, visible: true };
+        manualPoints = [...manualPoints, pt];
+
+        const layer = L.layerGroup().addTo(map);
+        pointLayers  = [...pointLayers, layer];
+        drawPoint(manualPoints.length - 1);
+
+        // Reset form
+        ptLatDeg = ''; ptLatMin = ''; ptLonDeg = ''; ptLonMin = '';
+        ptName   = '';
+    }
+
+    function drawPoint(idx: number) {
+        const pt = manualPoints[idx];
+        pointLayers[idx].clearLayers();
+        if (!pt.visible) return;
+
+        const icon = L.divIcon({
+            className: '',
+            html: `<svg viewBox="0 0 40 50" width="28" height="35">
+                    <path d="M20 0 C9 0 0 9 0 20 C0 34 20 50 20 50 C20 50 40 34 40 20 C40 9 31 0 20 0Z"
+                          fill="${pt.color}" stroke="white" stroke-width="3"/>
+                    <circle cx="20" cy="20" r="7" fill="white"/>
+                   </svg>`,
+            iconSize: [28, 35],
+            iconAnchor: [14, 35],
+            popupAnchor: [0, -35]
+        });
+
+        L.marker([pt.lat, pt.lon], { icon })
+            .addTo(pointLayers[idx])
+            .bindPopup(`<b>${pt.name}</b><br>${formatDMS(pt.lat,'NS')}<br>${formatDMS(pt.lon,'EW')}`);
+    }
+
+    function togglePoint(idx: number) {
+        drawPoint(idx);
+    }
+
+    function removePoint(idx: number) {
+        pointLayers[idx].remove();
+        manualPoints = manualPoints.filter((_, i) => i !== idx);
+        pointLayers  = pointLayers.filter((_, i) => i !== idx);
+    }
+
+    function changePointColor(idx: number, color: string) {
+        manualPoints[idx] = { ...manualPoints[idx], color };
+        manualPoints = [...manualPoints];
+        drawPoint(idx);
+    }
+
+    // ─── DST ──────────────────────────────────────────────────
+    let showDstPanel = false;
+    let showDst      = false;
+    let dstLayer     = null;
+
+    // Coordonnées officielles SHOM (DMS → DD)
+    const DST_ZONES = [
+        {
+            name: 'Ouessant — Forme Sud',
+            color: '#e67e22', fill: 0.20,
+            coords: [
+                [48.633222, -5.215239],
+                [48.620061, -5.198417],
+                [48.490350, -5.367922],
+                [48.496494, -5.391267]
+            ]
+        },
+        {
+            name: 'Ouessant — Forme Centrale Sud',
+            color: '#e67e22', fill: 0.20,
+            coords: [
+                [48.806764, -5.420558],
+                [48.660483, -5.246836],
+                [48.510136, -5.437725],
+                [48.584683, -5.702769],
+                [48.747036, -5.572308]
+            ]
+        },
+        {
+            name: 'Ouessant — Forme Centrale Nord',
+            color: '#e67e22', fill: 0.20,
+            coords: [
+                [48.946758, -5.544156],
+                [48.878167, -5.478925],
+                [48.809931, -5.658139],
+                [48.622825, -5.810572],
+                [48.660936, -5.921122],
+                [48.867325, -5.748775]
+            ]
+        },
+        {
+            name: 'Ouessant — Forme Nord',
+            color: '#e67e22', fill: 0.20,
+            coords: [
+                [49.031017, -5.616939],
+                [49.016608, -5.601833],
+                [48.925558, -5.844906],
+                [48.698567, -6.027553],
+                [48.708264, -6.048267],
+                [48.939272, -5.859439]
+            ]
+        },
+        {
+            name: 'Casquets — Forme Nord',
+            color: '#9b59b6', fill: 0.20,
+            coords: [
+                [50.143308, -2.471806],
+                [50.110733, -2.459447],
+                [50.027875, -2.944217],
+                [50.059183, -2.957950]
+            ]
+        },
+        {
+            name: 'Casquets — Forme Centre',
+            color: '#9b59b6', fill: 0.20,
+            coords: [
+                [50.031844, -2.425800],
+                [49.951944, -2.392156],
+                [49.867928, -2.878300],
+                [49.947525, -2.911258]
+            ]
+        },
+        {
+            name: 'Casquets — Forme Sud',
+            color: '#9b59b6', fill: 0.20,
+            coords: [
+                [49.870681, -2.359119],
+                [49.853861, -2.352253],
+                [49.771447, -2.837711],
+                [49.787411, -2.843892]
+            ]
+        }
+    ];
+
+    function toggleDst() {
+        if (showDst) {
+            drawDst();
+        } else {
+            dstLayer?.remove();
+            dstLayer = null;
+        }
+    }
+
+    function drawDst() {
+        dstLayer?.remove();
+        dstLayer = L.layerGroup().addTo(map);
+
+        DST_ZONES.forEach(zone => {
+            try {
+                const poly = L.polygon(zone.coords, {
+                    color:       zone.color,
+                    fillColor:   zone.color,
+                    fillOpacity: zone.fill,
+                    weight:      2,
+                    opacity:     0.85
+                }).addTo(dstLayer);
+
+                // Leaflet-GL ne supporte pas bindTooltip → bindPopup au clic
+                try { poly.bindPopup(`<b>${zone.name}</b>`, { closeButton: false }); } catch(e) {}
+
+
+            } catch(e) {
+                console.warn('[DST] Erreur zone', zone.name, e);
+            }
+        });
+    }
+
+    // ─── DESTRUCTION ──────────────────────────────────────────
     onDestroy(() => {
         unsubTime?.();
         routeLayers.forEach(l => l.remove());
         boatLayers.forEach(l => l.remove());
         barbLayers.forEach(l => l.remove());
+        pointLayers.forEach(l => l.remove());
+        dstLayer?.remove();
     });
 
     export const onopen = () => {};
@@ -1242,5 +1558,82 @@
         padding: 8px;
         border-radius: 6px;
         margin-top: 10px;
+    }
+
+    /* ── Sections repliables ── */
+    .kbt-section {
+        border: 1px solid #334;
+        border-radius: 8px;
+        margin-bottom: 10px;
+        overflow: hidden;
+    }
+    .kbt-section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 12px;
+        background: rgba(52,152,219,0.12);
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: bold;
+        user-select: none;
+        &:hover { background: rgba(52,152,219,0.22); }
+    }
+
+    /* ── Formulaire point manuel ── */
+    .kbt-point-form {
+        padding: 8px 10px;
+    }
+    .kbt-point-row {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        margin-bottom: 6px;
+    }
+    .kbt-point-label {
+        font-size: 10px;
+        color: #889;
+        width: 22px;
+        flex-shrink: 0;
+    }
+    .kbt-point-input {
+        background: rgba(0,0,0,0.5);
+        border: 1px solid #445;
+        color: white;
+        padding: 3px 5px;
+        border-radius: 4px;
+        font-size: 11px;
+        width: 52px;
+        text-align: center;
+        &:focus { outline: none; border-color: #3498db; }
+        /* Masquer les flèches number */
+        -moz-appearance: textfield;
+        &::-webkit-outer-spin-button,
+        &::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    }
+    .kbt-point-sep {
+        font-size: 13px;
+        color: #aaa;
+    }
+    .kbt-point-ns {
+        background: rgba(0,0,0,0.5);
+        border: 1px solid #445;
+        color: white;
+        padding: 3px 4px;
+        border-radius: 4px;
+        font-size: 11px;
+        cursor: pointer;
+    }
+    .kbt-point-name-input {
+        width: 100%;
+        background: rgba(0,0,0,0.5);
+        border: 1px solid #445;
+        color: white;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        margin-bottom: 4px;
+        box-sizing: border-box;
+        &:focus { outline: none; border-color: #3498db; }
     }
 </style>
