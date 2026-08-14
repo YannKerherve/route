@@ -324,13 +324,11 @@
                     <input type="checkbox" bind:checked={showDst} on:change={toggleDst} />
                     <span>WheatherScore information coming here soon : use the best weather model at sea</span>
                 </label>
-            </div>
-        {/if}
-    </div>
+                </div>
+            {/if}
+        </div>
 
     {/if}
-
-{/if}
 
 </div>
 <script lang="ts">
