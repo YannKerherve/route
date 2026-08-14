@@ -103,7 +103,13 @@
 
             <div class="kbt-route-info">
                 <span class="kbt-meta">{route.waypoints.length} pts</span>
-                <select bind:value={route.format} on:change={() => reloadRoute(idx)} class="kbt-select-format">
+                <select
+                    bind:value={route.format}
+                    on:change={() => reloadRoute(idx)}
+                    class="kbt-select-format"
+                    disabled={route.format === 'adrena'}
+                    title={route.format === 'adrena' ? 'Format fixé (fichier Excel Adrena)' : ''}
+                >
                     <option value="auto">Auto</option>
                     <option value="tactics">Tactics</option>
                     <option value="simsail">SimSail</option>
@@ -136,7 +142,7 @@
     ═══════════════════════════════════════════════ -->
     <div class="kbt-section">
         <div class="kbt-section-header" on:click={() => showPointsPanel = !showPointsPanel}>
-            <span>📍 Manual drawing</span>
+            <span>📍 Points manuels</span>
             <span>{showPointsPanel ? '▲' : '▼'}</span>
         </div>
         {#if showPointsPanel}
@@ -201,73 +207,8 @@
     </div>
 
     <!-- ═══════════════════════════════════════════════
-         BLOC DST
+         BLOC DST / TSS
     ═══════════════════════════════════════════════ -->
-    <div class="kbt-section">
-        <div class="kbt-section-header" on:click={() => showPointsPanel = !showPointsPanel}>
-            <span>📍 Manual drawing</span>
-            <span>{showPointsPanel ? '▲' : '▼'}</span>
-        </div>
-        {#if showPointsPanel}
-            <div class="kbt-point-form">
-                <div class="kbt-point-row">
-                    <label class="kbt-point-label">Lat</label>
-                    <input class="kbt-point-input" bind:value={ptLatDeg}  placeholder="48"     type="number" min="0"   max="90" />
-                    <span class="kbt-point-sep">°</span>
-                    <input class="kbt-point-input" bind:value={ptLatMin}  placeholder="12.345"  type="number" min="0"   max="60" step="0.001" />
-                    <select class="kbt-point-ns" bind:value={ptLatNS}>
-                        <option>N</option><option>S</option>
-                    </select>
-                </div>
-                <div class="kbt-point-row">
-                    <label class="kbt-point-label">Lon</label>
-                    <input class="kbt-point-input" bind:value={ptLonDeg}  placeholder="002"    type="number" min="0"   max="180" />
-                    <span class="kbt-point-sep">°</span>
-                    <input class="kbt-point-input" bind:value={ptLonMin}  placeholder="34.567"  type="number" min="0"   max="60" step="0.001" />
-                    <select class="kbt-point-ns" bind:value={ptLonEW}>
-                        <option>W</option><option>E</option>
-                    </select>
-                </div>
-                <input class="kbt-point-name-input" bind:value={ptName} placeholder="Nom du point (optionnel)" />
-                <div class="kbt-color-picker" style="margin:6px 0 8px">
-                    {#each COLORS as color}
-                        <button
-                            class="kbt-color-swatch"
-                            class:kbt-color-swatch--active={ptColor === color}
-                            style="background:{color}"
-                            on:click={() => ptColor = color}
-                        ></button>
-                    {/each}
-                </div>
-                <button class="kbt-btn-fit" on:click={addManualPoint}>➕ Ajouter</button>
-                {#if ptError}<div class="kbt-error">{ptError}</div>{/if}
-            </div>
-
-            {#each manualPoints as pt, idx}
-                <div class="kbt-route-card" style="margin-top:6px">
-                    <div class="kbt-route-header">
-                        <input type="checkbox" bind:checked={pt.visible} on:change={() => togglePoint(idx)} />
-                        <span class="kbt-route-name" style="color:{pt.color}">{pt.name}</span>
-                        <button class="kbt-btn-remove" on:click={() => removePoint(idx)}>🗑</button>
-                    </div>
-                    <div style="font-size:10px;color:#889;padding:0 2px 4px">
-                        {formatDMS(pt.lat, 'NS')} — {formatDMS(pt.lon, 'EW')}
-                    </div>
-                    <div class="kbt-color-picker">
-                        {#each COLORS as color}
-                            <button
-                                class="kbt-color-swatch"
-                                class:kbt-color-swatch--active={pt.color === color}
-                                style="background:{color}"
-                                on:click={() => changePointColor(idx, color)}
-                            ></button>
-                        {/each}
-                    </div>
-                </div>
-            {/each}
-        {/if}
-    </div>
-
     <div class="kbt-section">
         <div class="kbt-section-header" on:click={() => showDstPanel = !showDstPanel}>
             <span>🚢 TSS</span>
@@ -277,38 +218,80 @@
             <div style="padding:6px 4px">
                 <label class="kbt-checkbox">
                     <input type="checkbox" bind:checked={showDst} on:change={toggleDst} />
-                    <span>Afficher les DST (Ouessant + Calvados)</span>
+                    <span>Afficher les DST (Ouessant + Casquets)</span>
                 </label>
             </div>
         {/if}
     </div>
 
+    <!-- ═══════════════════════════════════════════════
+         BLOC OPENSEAMAP (balisage précis type ECDIS)
+    ═══════════════════════════════════════════════ -->
     <div class="kbt-section">
         <div class="kbt-section-header" on:click={() => showOSMPanel = !showOSMPanel}>
-            <span>🗺️ OpenSee Map</span>
+            <span>🗺️ OpenSeaMap</span>
             <span>{showOSMPanel ? '▲' : '▼'}</span>
         </div>
         {#if showOSMPanel}
-            <div style="padding:6px 4px">
-                <label class="kbt-checkbox">
-                    <input type="checkbox" bind:checked={showDst} on:change={toggleDst} />
-                    <span>Show OpenSea Map. (Do not use for navigation purposes)</span>
-                </label>
+            <div style="padding:8px 6px">
+                <div
+                    class="kbt-drop kbt-drop--compact"
+                    on:click={() => seamarkFileInput.click()}
+                >
+                    <span>📥 Importer la donnée (GeoJSON)</span>
+                    <span class="kbt-hint">Fichier généré par le script Python (seamarks.geojson)</span>
+                    <input bind:this={seamarkFileInput} type="file" accept=".geojson,.json" on:change={handleSeamarkFile} style="display:none;" />
+                </div>
+
+                {#if seamarkCount > 0}
+                    <label class="kbt-checkbox" style="margin-top:8px">
+                        <input type="checkbox" bind:checked={seamarksVisible} on:change={renderSeamarks} />
+                        <span>Afficher les balises ({seamarkCount})</span>
+                    </label>
+                    <div class="kbt-hint" style="margin-top:4px">
+                        Les balises apparaissent progressivement en zoomant (importance décroissante).
+                    </div>
+                    <button class="kbt-btn-remove" style="width:100%;margin-top:8px" on:click={clearSeamarks}>🗑 Effacer la donnée</button>
+                {/if}
+
+                {#if seamarkError}<div class="kbt-error">{seamarkError}</div>{/if}
             </div>
         {/if}
     </div>
 
+    <!-- ═══════════════════════════════════════════════
+         BLOC OUTILS DE MESURE (distance / relèvement)
+    ═══════════════════════════════════════════════ -->
     <div class="kbt-section">
         <div class="kbt-section-header" on:click={() => showmeasurePanel = !showmeasurePanel}>
-            <span>📏 Measuring tools</span>
+            <span>📏 Outils de mesure</span>
             <span>{showmeasurePanel ? '▲' : '▼'}</span>
         </div>
         {#if showmeasurePanel}
-            <div style="padding:6px 4px">
+            <div style="padding:8px 6px">
                 <label class="kbt-checkbox">
-                    <input type="checkbox" bind:checked={showDst} on:change={toggleDst} />
-                    <span>...</span>
+                    <input type="checkbox" bind:checked={measureActive} on:change={toggleMeasure} />
+                    <span>Activer (double-clic sur la carte)</span>
                 </label>
+                <div class="kbt-hint" style="margin-top:6px">
+                    1er double-clic = départ, 2e double-clic = arrivée. Distance en milles nautiques, relèvement vrai.
+                </div>
+
+                {#if measureStart}
+                    <div class="kbt-tz-warn" style="margin-top:8px">🎯 Point de départ posé — double-cliquez pour l'arrivée</div>
+                {/if}
+
+                {#if measurements.length > 0}
+                    <div class="kbt-measure-list">
+                        {#each measurements as m, mi}
+                            <div class="kbt-measure-item">
+                                <span>#{mi + 1} — {m.distNM.toFixed(2)} MN / {m.brg.toFixed(0)}°</span>
+                                <button class="kbt-btn-remove" on:click={() => removeMeasurement(m.id)}>🗑</button>
+                            </div>
+                        {/each}
+                    </div>
+                    <button class="kbt-btn-remove" style="width:100%;margin-top:8px" on:click={clearAllMeasurements}>🗑 Tout effacer</button>
+                {/if}
             </div>
         {/if}
     </div>
@@ -320,13 +303,10 @@
         </div>
         {#if showWSPanel}
             <div style="padding:6px 4px">
-                <label class="kbt-checkbox">
-                    <input type="checkbox" bind:checked={showDst} on:change={toggleDst} />
-                    <span>WheatherScore information coming here soon : use the best weather model at sea</span>
-                </label>
-                </div>
-            {/if}
-        </div>
+                <span class="kbt-hint">WeatherScore : bientôt ici — sélection automatique du meilleur modèle météo en mer.</span>
+            </div>
+        {/if}
+    </div>
 
     {/if}
 
@@ -421,11 +401,6 @@
     // CORRECTION CHANGEMENT DE MOIS / ANNÉE
     // -------------------------------------------------------------------
 
-    /**
-     * Corrige les timestamps quand on franchit un changement de mois ou d'année.
-     * Si un waypoint N+1 est chronologiquement avant N, on ajoute un mois
-     * jusqu'à ce que la séquence soit cohérente.
-     */
     function fixTimestampRollover(waypoints: any[]): void {
         for (let i = 1; i < waypoints.length; i++) {
             while (waypoints[i].time !== null && waypoints[i - 1].time !== null
@@ -616,27 +591,12 @@
             return isNaN(n) ? 0 : n;
         };
 
-        // Adrena XLSX : deux formats de date selon les lignes
-        //
-        // 1) String "DD/MM HH:MM" (premières lignes, sans année)
-        //    → on déduit l'année depuis le premier serial (voir ci-dessous)
-        //
-        // 2) Serial Excel numérique (dès qu'un changement de mois survient)
-        //    → SheetJS retourne un NUMBER brut (nb de jours depuis 1899-12-30)
-        //    → MAIS Adrena stocke la date en DD/MM dans la cellule texte source,
-        //      et Excel l'interprète en MM/DD quand il crée le serial.
-        //      Résultat : le serial représente mois et jour INVERSÉS.
-        //    → Correction : après conversion standard, on swap month↔day.
-        //
-        // Fonction de conversion serial → timestamp avec swap mois/jour
         function adrenaSerialToMs(serial: number): number {
             const raw = new Date(Math.round((serial - 25569) * 86400000));
-            // swap : raw.getUTCMonth()+1 est en réalité le jour,
-            //        raw.getUTCDate()    est en réalité le mois (1-based)
             const fixed = new Date(Date.UTC(
                 raw.getUTCFullYear(),
-                raw.getUTCDate() - 1,      // vrai mois (0-based)
-                raw.getUTCMonth() + 1,     // vrai jour
+                raw.getUTCDate() - 1,
+                raw.getUTCMonth() + 1,
                 raw.getUTCHours(),
                 raw.getUTCMinutes(),
                 raw.getUTCSeconds()
@@ -644,9 +604,6 @@
             return fixed.getTime();
         }
 
-        // Déduire l'année pour les strings : chercher le premier serial,
-        // le convertir (avec swap), et comparer son mois au mois de départ.
-        // Si mois départ > mois serial → changement d'année → stringYear = serialYear - 1
         let stringYear: number = new Date().getFullYear();
         for (let k = 1; k < data.length; k++) {
             const cell = data[k][1];
@@ -903,6 +860,13 @@
         });
     }
 
+    // Différence angulaire par le chemin le plus court (évite les demi-tours
+    // fantômes du bateau quand on interpole un cap autour de 0°/360°).
+    function shortestAngleLerp(a: number, b: number, ratio: number): number {
+        let diff = ((b - a + 540) % 360) - 180;
+        return (a + diff * ratio + 360) % 360;
+    }
+
     function getInterpolatedPosition(ts: number, waypoints: any[]): any | null {
         if (waypoints.length === 0) return null;
 
@@ -924,7 +888,7 @@
         return {
             lat:   a.lat   + (b.lat   - a.lat)   * ratio,
             lon:   a.lon   + (b.lon   - a.lon)    * ratio,
-            cog:   a.cog   + (b.cog   - a.cog)    * ratio,
+            cog:   shortestAngleLerp(a.cog, b.cog, ratio),
             sog:   a.sog   + (b.sog   - a.sog)    * ratio,
             tws:   a.tws   + (b.tws   - a.tws)    * ratio,
             twd:   a.twd   + (b.twd   - a.twd)    * ratio,
@@ -1113,7 +1077,7 @@
     }
 
     // -------------------------------------------------------------------
-    // EVENT HANDLERS
+    // EVENT HANDLERS (fichiers routes)
     // -------------------------------------------------------------------
 
     const handleDrop = (e: DragEvent) => {
@@ -1123,19 +1087,11 @@
 
     const handleFileChange = (e: Event) => handleFiles((e.target as HTMLInputElement).files);
 
-    onMount(() => {
-        unsubTime = store.on('timestamp', (ts: number) => {
-            updateTimeDisplay(ts);
-            updateBoatPosition(ts);
-        });
-    });
-
     // ─── POINTS MANUELS ───────────────────────────────────────
     let showPointsPanel = false;
     let manualPoints = [];
     let pointLayers  = [];
 
-    // Formulaire
     let ptLatDeg = '', ptLatMin = '', ptLatNS = 'N';
     let ptLonDeg = '', ptLonMin = '', ptLonEW = 'W';
     let ptName   = '';
@@ -1175,7 +1131,6 @@
         pointLayers  = [...pointLayers, layer];
         drawPoint(manualPoints.length - 1);
 
-        // Reset form
         ptLatDeg = ''; ptLatMin = ''; ptLonDeg = ''; ptLonMin = '';
         ptName   = '';
     }
@@ -1218,12 +1173,11 @@
         drawPoint(idx);
     }
 
-    // ─── DST ──────────────────────────────────────────────────
+    // ─── DST / TSS ────────────────────────────────────────────
     let showDstPanel = false;
     let showDst      = false;
     let dstLayer     = null;
 
-    // Coordonnées officielles SHOM (DMS → DD)
     const DST_ZONES = [
         {
             name: 'Ouessant — Forme Sud',
@@ -1325,9 +1279,7 @@
                     opacity:     0.85
                 }).addTo(dstLayer);
 
-                // Leaflet-GL ne supporte pas bindTooltip → bindPopup au clic
                 try { poly.bindPopup(`<b>${zone.name}</b>`, { closeButton: false }); } catch(e) {}
-
 
             } catch(e) {
                 console.warn('[DST] Erreur zone', zone.name, e);
@@ -1335,7 +1287,328 @@
         });
     }
 
-    // ─── DESTRUCTION ──────────────────────────────────────────
+    // ─── OPENSEAMAP (balisage précis, généré par le script Python) ────
+    let showOSMPanel     = false;
+    let seamarkFileInput;
+    let seamarkFeatures  = [];
+    let seamarkCount     = 0;
+    let seamarksVisible  = true;
+    let seamarkLayer     = null;
+    let seamarkError     = '';
+
+    // Palette IALA / balisage courante (couleurs OSM → hex)
+    const SEAMARK_COLORS = {
+        red: '#e0302a', green: '#1fa34a', yellow: '#f1c40f', black: '#161616',
+        white: '#ffffff', orange: '#e67e22', blue: '#2d7dd2',
+        grey: '#95a5a6', gray: '#95a5a6', amber: '#e0a020', violet: '#8e44ad'
+    };
+
+    function firstColor(raw: string | undefined): string {
+        if (!raw) return '#888888';
+        const first = raw.split(';')[0].trim().toLowerCase();
+        return SEAMARK_COLORS[first] || '#888888';
+    }
+
+    function seamarkLabel(props: any): string {
+        const parts = [props.name, props.seamark_type?.replace(/_/g, ' ')].filter(Boolean);
+        return parts.join(' — ') || 'Balise';
+    }
+
+    // Génère une icône simplifiée mais fidèle aux couleurs/formes IALA.
+    function buildSeamarkIcon(props: any) {
+        const typ    = props.seamark_type || '';
+        const attrs  = props.attributes || {};
+        const kids   = props.children || {};
+        const size   = 24;
+
+        const svg = (inner: string) =>
+            `<svg viewBox="0 0 40 40" width="${size}" height="${size}" style="overflow:visible">${inner}</svg>`;
+
+        const pole = `<line x1="20" y1="40" x2="20" y2="10" stroke="#555" stroke-width="2"/>`;
+
+        if (typ.startsWith('buoy_lateral') || typ.startsWith('beacon_lateral')) {
+            const cat = (attrs.category || '').toLowerCase();
+            const col = cat === 'port' ? SEAMARK_COLORS.red
+                      : cat === 'starboard' ? SEAMARK_COLORS.green
+                      : firstColor(attrs.colour);
+            const shape = cat === 'starboard'
+                ? `<polygon points="20,6 29,32 11,32" fill="${col}" stroke="#000" stroke-width="1"/>`
+                : `<rect x="11" y="10" width="18" height="22" fill="${col}" stroke="#000" stroke-width="1"/>`;
+            return { html: svg(pole + shape), size };
+        }
+
+        if (typ.includes('cardinal')) {
+            const cat = (attrs.category || '').toLowerCase();
+            const bandTop = cat === 'south' || cat === 'west' ? SEAMARK_COLORS.yellow : SEAMARK_COLORS.black;
+            const bandBot = cat === 'south' ? SEAMARK_COLORS.black
+                          : cat === 'north' ? SEAMARK_COLORS.yellow
+                          : SEAMARK_COLORS.black;
+            const bandMid = (cat === 'east' || cat === 'west') ? SEAMARK_COLORS.yellow : null;
+            const body = bandMid
+                ? `<rect x="12" y="10" width="16" height="8" fill="${bandTop}"/>
+                   <rect x="12" y="18" width="16" height="6" fill="${bandMid}"/>
+                   <rect x="12" y="24" width="16" height="8" fill="${bandBot}"/>`
+                : `<rect x="12" y="10" width="16" height="11" fill="${bandTop}"/>
+                   <rect x="12" y="21" width="16" height="11" fill="${bandBot}"/>`;
+            const tri = (cy: number, up: boolean) => up
+                ? `<polygon points="20,${cy - 4} 16,${cy + 4} 24,${cy + 4}" fill="#000"/>`
+                : `<polygon points="20,${cy + 4} 16,${cy - 4} 24,${cy - 4}" fill="#000"/>`;
+            let topmark = '';
+            if (cat === 'north')      topmark = tri(2, true)  + tri(6, true);
+            else if (cat === 'south') topmark = tri(2, false) + tri(6, false);
+            else if (cat === 'east')  topmark = tri(2, true)  + tri(8, false);
+            else if (cat === 'west')  topmark = tri(2, false) + tri(8, true);
+            return { html: svg(pole + body + topmark), size };
+        }
+
+        if (typ.includes('isolated_danger')) {
+            const body = `<rect x="12" y="10" width="16" height="10" fill="#161616"/>
+                           <rect x="12" y="20" width="16" height="6" fill="#e0302a"/>
+                           <rect x="12" y="26" width="16" height="6" fill="#161616"/>`;
+            const topmark = `<circle cx="20" cy="4" r="3.5" fill="#161616"/><circle cx="20" cy="8" r="3.5" fill="#161616"/>`;
+            return { html: svg(pole + body + topmark), size };
+        }
+
+        if (typ.includes('safe_water')) {
+            const body = `<rect x="12" y="10" width="4" height="22" fill="#e0302a"/>
+                           <rect x="16" y="10" width="4" height="22" fill="#ffffff"/>
+                           <rect x="20" y="10" width="4" height="22" fill="#e0302a"/>
+                           <rect x="24" y="10" width="4" height="22" fill="#ffffff"/>`;
+            const topmark = `<circle cx="20" cy="5" r="4" fill="#e0302a"/>`;
+            return { html: svg(pole + body + topmark), size };
+        }
+
+        if (typ.includes('special_purpose')) {
+            const body = `<rect x="11" y="10" width="18" height="22" fill="${SEAMARK_COLORS.yellow}" stroke="#000" stroke-width="1"/>`;
+            const topmark = `<line x1="15" y1="2" x2="25" y2="10" stroke="#000" stroke-width="2.5"/>
+                              <line x1="25" y1="2" x2="15" y2="10" stroke="#000" stroke-width="2.5"/>`;
+            return { html: svg(pole + body + topmark), size };
+        }
+
+        if (typ.startsWith('light_major') || typ.startsWith('light_minor')) {
+            const col = firstColor(kids.light?.colour) === '#888888' ? '#f1c40f' : firstColor(kids.light?.colour);
+            const rays = [0,45,90,135,180,225,270,315].map(a =>
+                `<line x1="20" y1="20" x2="${20+14*Math.cos(a*Math.PI/180)}" y2="${20+14*Math.sin(a*Math.PI/180)}" stroke="${col}" stroke-width="1.5"/>`
+            ).join('');
+            return { html: svg(rays + `<circle cx="20" cy="20" r="6" fill="${col}" stroke="#000" stroke-width="1"/>`), size: 22 };
+        }
+
+        if (typ.includes('wreck')) {
+            return { html: svg(`<line x1="10" y1="10" x2="30" y2="30" stroke="#7b1f1f" stroke-width="3"/>
+                                 <line x1="30" y1="10" x2="10" y2="30" stroke="#7b1f1f" stroke-width="3"/>
+                                 <circle cx="20" cy="20" r="15" fill="none" stroke="#7b1f1f" stroke-width="1.5" stroke-dasharray="3,2"/>`), size: 20 };
+        }
+
+        if (typ.includes('obstruction')) {
+            return { html: svg(`<circle cx="20" cy="20" r="13" fill="none" stroke="#e67e22" stroke-width="2" stroke-dasharray="4,3"/>`), size: 18 };
+        }
+
+        if (typ.includes('anchorage') || typ.includes('anchor_berth')) {
+            return { html: svg(`<circle cx="20" cy="20" r="14" fill="none" stroke="#2d7dd2" stroke-width="2"/>
+                                 <circle cx="20" cy="12" r="2.5" fill="#2d7dd2"/>
+                                 <line x1="20" y1="14" x2="20" y2="28" stroke="#2d7dd2" stroke-width="2"/>
+                                 <path d="M10 24 Q20 34 30 24" fill="none" stroke="#2d7dd2" stroke-width="2"/>`), size: 20 };
+        }
+
+        if (typ.includes('marine_farm')) {
+            return { html: svg(`<rect x="8" y="8" width="24" height="24" fill="none" stroke="#1fa34a" stroke-width="2"/>
+                                 <line x1="8" y1="16" x2="32" y2="16" stroke="#1fa34a" stroke-width="1"/>
+                                 <line x1="8" y1="24" x2="32" y2="24" stroke="#1fa34a" stroke-width="1"/>`), size: 18 };
+        }
+
+        if (typ.includes('offshore_platform')) {
+            return { html: svg(`<rect x="10" y="10" width="20" height="20" fill="#95a5a6" stroke="#000" stroke-width="1"/>
+                                 <circle cx="20" cy="20" r="3" fill="#e67e22"/>`), size: 18 };
+        }
+
+        if (typ.includes('cable_submarine') || typ.includes('pipeline_submarine')) {
+            return { html: svg(`<circle cx="20" cy="20" r="4" fill="#555"/>`), size: 12 };
+        }
+
+        if (typ.includes('harbour')) {
+            return { html: svg(`<circle cx="20" cy="20" r="14" fill="#2d7dd2" opacity="0.85"/>
+                                 <path d="M20 10 L20 26 M14 20 Q20 28 26 20" fill="none" stroke="#fff" stroke-width="2"/>`), size: 20 };
+        }
+
+        if (typ.includes('landmark')) {
+            return { html: svg(`<polygon points="20,8 30,32 10,32" fill="none" stroke="#161616" stroke-width="2"/>`), size: 18 };
+        }
+
+        // fallback générique
+        return { html: svg(`<circle cx="20" cy="20" r="6" fill="#95a5a6" stroke="#000" stroke-width="1"/>`), size: 14 };
+    }
+
+    async function handleSeamarkFile(e: Event) {
+        const file = (e.target as HTMLInputElement).files?.[0];
+        if (!file) return;
+        seamarkError = '';
+        try {
+            const text = await file.text();
+            const geo = JSON.parse(text);
+            seamarkFeatures = (geo.features || []).filter(f => f?.geometry?.type === 'Point');
+            seamarkCount = seamarkFeatures.length;
+            if (seamarkCount === 0) {
+                seamarkError = 'Aucune balise trouvée dans ce fichier.';
+                return;
+            }
+            if (!seamarkLayer) seamarkLayer = L.layerGroup().addTo(map);
+            renderSeamarks();
+        } catch (err) {
+            seamarkError = 'Fichier invalide (GeoJSON attendu — sortie du script Python).';
+            console.error(err);
+        }
+    }
+
+    function renderSeamarks() {
+        if (!seamarkLayer) return;
+        seamarkLayer.clearLayers();
+        if (!seamarksVisible || seamarkFeatures.length === 0) return;
+
+        const zoom = typeof map.getZoom === 'function' ? map.getZoom() : 10;
+
+        seamarkFeatures.forEach(f => {
+            const props = f.properties || {};
+            const minZoom = props.min_zoom ?? 10;
+            if (zoom < minZoom) return;
+
+            const [lon, lat] = f.geometry.coordinates;
+            const { html, size } = buildSeamarkIcon(props);
+
+            const icon = L.divIcon({
+                className: '',
+                html,
+                iconSize: [size, size],
+                iconAnchor: [size / 2, size / 2]
+            });
+
+            L.marker([lat, lon], { icon })
+                .addTo(seamarkLayer)
+                .bindTooltip(seamarkLabel(props), { direction: 'top' });
+        });
+    }
+
+    function clearSeamarks() {
+        seamarkLayer?.clearLayers();
+        seamarkFeatures = [];
+        seamarkCount = 0;
+        seamarkError = '';
+    }
+
+    // ─── OUTILS DE MESURE (distance / relèvement) ──────────────
+    let showmeasurePanel = false;
+    let measureActive    = false;
+    let measureLayer     = null;
+    let measureStart: { lat: number, lon: number, marker: any } | null = null;
+    let measurements: { id: number, distNM: number, brg: number, layers: any[] }[] = [];
+
+    function haversineNM(lat1: number, lon1: number, lat2: number, lon2: number): number {
+        const R = 3440.065; // rayon terrestre en NM
+        const toRad = (d: number) => d * Math.PI / 180;
+        const dLat = toRad(lat2 - lat1);
+        const dLon = toRad(lon2 - lon1);
+        const a = Math.sin(dLat / 2) ** 2 +
+                  Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    function initialBearing(lat1: number, lon1: number, lat2: number, lon2: number): number {
+        const toRad = (d: number) => d * Math.PI / 180;
+        const toDeg = (r: number) => r * 180 / Math.PI;
+        const y = Math.sin(toRad(lon2 - lon1)) * Math.cos(toRad(lat2));
+        const x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) -
+                  Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(toRad(lon2 - lon1));
+        return (toDeg(Math.atan2(y, x)) + 360) % 360;
+    }
+
+    function onMapDblClick(e: any) {
+        const { lat, lng } = e.latlng;
+
+        if (!measureStart) {
+            const marker = L.circleMarker([lat, lng], {
+                radius: 5, color: '#f1c40f', fillColor: '#f1c40f', fillOpacity: 1, weight: 2
+            }).addTo(measureLayer);
+            measureStart = { lat, lon: lng, marker };
+            return;
+        }
+
+        const distNM = haversineNM(measureStart.lat, measureStart.lon, lat, lng);
+        const brg    = initialBearing(measureStart.lat, measureStart.lon, lat, lng);
+
+        const line = L.polyline(
+            [[measureStart.lat, measureStart.lon], [lat, lng]],
+            { color: '#f1c40f', weight: 2, dashArray: '6,4' }
+        ).addTo(measureLayer);
+
+        const midLat = (measureStart.lat + lat) / 2;
+        const midLon = (measureStart.lon + lng) / 2;
+        const label = L.marker([midLat, midLon], {
+            icon: L.divIcon({
+                className: '',
+                html: `<div class="kbt-measure-label">${distNM.toFixed(2)} MN / ${brg.toFixed(0)}°</div>`,
+                iconSize: [0, 0]
+            })
+        }).addTo(measureLayer);
+
+        const endMarker = L.circleMarker([lat, lng], {
+            radius: 5, color: '#f1c40f', fillColor: '#f1c40f', fillOpacity: 1, weight: 2
+        }).addTo(measureLayer);
+
+        measurements = [...measurements, {
+            id: Date.now() + Math.random(),
+            distNM, brg,
+            layers: [measureStart.marker, line, label, endMarker]
+        }];
+
+        measureStart = null;
+    }
+
+    function toggleMeasure() {
+        if (measureActive) {
+            if (map.doubleClickZoom) map.doubleClickZoom.disable();
+            map.on('dblclick', onMapDblClick);
+        } else {
+            if (map.doubleClickZoom) map.doubleClickZoom.enable();
+            map.off('dblclick', onMapDblClick);
+            if (measureStart) {
+                measureStart.marker.remove();
+                measureStart = null;
+            }
+        }
+    }
+
+    function removeMeasurement(id: number) {
+        const m = measurements.find(x => x.id === id);
+        if (m) m.layers.forEach(l => l.remove());
+        measurements = measurements.filter(x => x.id !== id);
+    }
+
+    function clearAllMeasurements() {
+        measurements.forEach(m => m.layers.forEach(l => l.remove()));
+        measurements = [];
+        if (measureStart) {
+            measureStart.marker.remove();
+            measureStart = null;
+        }
+    }
+
+    // ─── WEATHERSCORE (placeholder) ────────────────────────────
+    let showWSPanel = false;
+
+    // ─── INIT / DESTRUCTION ─────────────────────────────────────
+    onMount(() => {
+        unsubTime = store.on('timestamp', (ts: number) => {
+            updateTimeDisplay(ts);
+            updateBoatPosition(ts);
+        });
+
+        seamarkLayer = L.layerGroup().addTo(map);
+        measureLayer = L.layerGroup().addTo(map);
+
+        if (typeof map.on === 'function') {
+            map.on('zoomend', renderSeamarks);
+        }
+    });
+
     onDestroy(() => {
         unsubTime?.();
         routeLayers.forEach(l => l.remove());
@@ -1343,6 +1616,14 @@
         barbLayers.forEach(l => l.remove());
         pointLayers.forEach(l => l.remove());
         dstLayer?.remove();
+        seamarkLayer?.remove();
+        measureLayer?.remove();
+
+        if (typeof map.off === 'function') {
+            map.off('zoomend', renderSeamarks);
+            map.off('dblclick', onMapDblClick);
+        }
+        if (measureActive && map.doubleClickZoom) map.doubleClickZoom.enable();
     });
 
     export const onopen = () => {};
@@ -1423,6 +1704,10 @@
             border-color: #3498db;
             background: #1a1f2e;
         }
+    }
+    .kbt-drop--compact {
+        padding: 12px;
+        margin-bottom: 0;
     }
     .kbt-hint {
         display: block;
@@ -1621,6 +1906,7 @@
         font-size: 11px;
         cursor: pointer;
         &:focus { outline: none; border-color: #3498db; }
+        &:disabled { opacity: 0.5; cursor: not-allowed; }
     }
 
     .kbt-barbs-options {
@@ -1716,7 +2002,6 @@
         width: 52px;
         text-align: center;
         &:focus { outline: none; border-color: #3498db; }
-        /* Masquer les flèches number */
         -moz-appearance: textfield;
         &::-webkit-outer-spin-button,
         &::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
@@ -1745,5 +2030,34 @@
         margin-bottom: 4px;
         box-sizing: border-box;
         &:focus { outline: none; border-color: #3498db; }
+    }
+
+    /* ── Outils de mesure ── */
+    .kbt-measure-list {
+        margin-top: 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    .kbt-measure-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: rgba(0,0,0,0.3);
+        padding: 5px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-family: monospace;
+    }
+    :global(.kbt-measure-label) {
+        background: rgba(15,15,25,0.9);
+        color: #f1c40f;
+        border: 1px solid #f1c40f;
+        border-radius: 4px;
+        padding: 2px 6px;
+        font-size: 11px;
+        font-weight: bold;
+        white-space: nowrap;
+        transform: translate(-50%, -50%);
     }
 </style>
