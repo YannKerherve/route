@@ -204,6 +204,71 @@
          BLOC DST
     ═══════════════════════════════════════════════ -->
     <div class="kbt-section">
+        <div class="kbt-section-header" on:click={() => showPointsPanel = !showPointsPanel}>
+            <span>📍 Manual drawing</span>
+            <span>{showPointsPanel ? '▲' : '▼'}</span>
+        </div>
+        {#if showPointsPanel}
+            <div class="kbt-point-form">
+                <div class="kbt-point-row">
+                    <label class="kbt-point-label">Lat</label>
+                    <input class="kbt-point-input" bind:value={ptLatDeg}  placeholder="48"     type="number" min="0"   max="90" />
+                    <span class="kbt-point-sep">°</span>
+                    <input class="kbt-point-input" bind:value={ptLatMin}  placeholder="12.345"  type="number" min="0"   max="60" step="0.001" />
+                    <select class="kbt-point-ns" bind:value={ptLatNS}>
+                        <option>N</option><option>S</option>
+                    </select>
+                </div>
+                <div class="kbt-point-row">
+                    <label class="kbt-point-label">Lon</label>
+                    <input class="kbt-point-input" bind:value={ptLonDeg}  placeholder="002"    type="number" min="0"   max="180" />
+                    <span class="kbt-point-sep">°</span>
+                    <input class="kbt-point-input" bind:value={ptLonMin}  placeholder="34.567"  type="number" min="0"   max="60" step="0.001" />
+                    <select class="kbt-point-ns" bind:value={ptLonEW}>
+                        <option>W</option><option>E</option>
+                    </select>
+                </div>
+                <input class="kbt-point-name-input" bind:value={ptName} placeholder="Nom du point (optionnel)" />
+                <div class="kbt-color-picker" style="margin:6px 0 8px">
+                    {#each COLORS as color}
+                        <button
+                            class="kbt-color-swatch"
+                            class:kbt-color-swatch--active={ptColor === color}
+                            style="background:{color}"
+                            on:click={() => ptColor = color}
+                        ></button>
+                    {/each}
+                </div>
+                <button class="kbt-btn-fit" on:click={addManualPoint}>➕ Ajouter</button>
+                {#if ptError}<div class="kbt-error">{ptError}</div>{/if}
+            </div>
+
+            {#each manualPoints as pt, idx}
+                <div class="kbt-route-card" style="margin-top:6px">
+                    <div class="kbt-route-header">
+                        <input type="checkbox" bind:checked={pt.visible} on:change={() => togglePoint(idx)} />
+                        <span class="kbt-route-name" style="color:{pt.color}">{pt.name}</span>
+                        <button class="kbt-btn-remove" on:click={() => removePoint(idx)}>🗑</button>
+                    </div>
+                    <div style="font-size:10px;color:#889;padding:0 2px 4px">
+                        {formatDMS(pt.lat, 'NS')} — {formatDMS(pt.lon, 'EW')}
+                    </div>
+                    <div class="kbt-color-picker">
+                        {#each COLORS as color}
+                            <button
+                                class="kbt-color-swatch"
+                                class:kbt-color-swatch--active={pt.color === color}
+                                style="background:{color}"
+                                on:click={() => changePointColor(idx, color)}
+                            ></button>
+                        {/each}
+                    </div>
+                </div>
+            {/each}
+        {/if}
+    </div>
+
+    <div class="kbt-section">
         <div class="kbt-section-header" on:click={() => showDstPanel = !showDstPanel}>
             <span>🚢 TSS</span>
             <span>{showDstPanel ? '▲' : '▼'}</span>
@@ -216,6 +281,8 @@
                 </label>
             </div>
         {/if}
+    </div>
+
     <div class="kbt-section">
         <div class="kbt-section-header" on:click={() => showOSMPanel = !showOSMPanel}>
             <span>🗺️ OpenSee Map</span>
@@ -229,9 +296,8 @@
                 </label>
             </div>
         {/if}
-
-
     </div>
+
     <div class="kbt-section">
         <div class="kbt-section-header" on:click={() => showmeasurePanel = !showmeasurePanel}>
             <span>📏 Measuring tools</span>
@@ -245,8 +311,6 @@
                 </label>
             </div>
         {/if}
-
-
     </div>
 
     <div class="kbt-section">
@@ -262,11 +326,13 @@
                 </label>
             </div>
         {/if}
-
-
     </div>
-</div>
 
+    {/if}
+
+{/if}
+
+</div>
 <script lang="ts">
     import bcast from "@windy/broadcast";
     import { onDestroy, onMount } from 'svelte';
