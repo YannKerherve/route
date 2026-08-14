@@ -136,7 +136,7 @@
     ═══════════════════════════════════════════════ -->
     <div class="kbt-section">
         <div class="kbt-section-header" on:click={() => showPointsPanel = !showPointsPanel}>
-            <span>📍 Points manuels</span>
+            <span>📍 Manual drawing</span>
             <span>{showPointsPanel ? '▲' : '▼'}</span>
         </div>
         {#if showPointsPanel}
@@ -205,7 +205,7 @@
     ═══════════════════════════════════════════════ -->
     <div class="kbt-section">
         <div class="kbt-section-header" on:click={() => showDstPanel = !showDstPanel}>
-            <span>🚢 DST</span>
+            <span>🚢 TSS</span>
             <span>{showDstPanel ? '▲' : '▼'}</span>
         </div>
         {#if showDstPanel}
@@ -216,9 +216,55 @@
                 </label>
             </div>
         {/if}
+    <div class="kbt-section">
+        <div class="kbt-section-header" on:click={() => showOSMPanel = !showOSMPanel}>
+            <span>🗺️ OpenSee Map</span>
+            <span>{showOSMPanel ? '▲' : '▼'}</span>
+        </div>
+        {#if showOSMPanel}
+            <div style="padding:6px 4px">
+                <label class="kbt-checkbox">
+                    <input type="checkbox" bind:checked={showDst} on:change={toggleDst} />
+                    <span>Show OpenSea Map. (Do not use for navigation purposes)</span>
+                </label>
+            </div>
+        {/if}
+
+
+    </div>
+    <div class="kbt-section">
+        <div class="kbt-section-header" on:click={() => showmeasurePanel = !showmeasurePanel}>
+            <span>📏 Measuring tools</span>
+            <span>{showmeasurePanel ? '▲' : '▼'}</span>
+        </div>
+        {#if showmeasurePanel}
+            <div style="padding:6px 4px">
+                <label class="kbt-checkbox">
+                    <input type="checkbox" bind:checked={showDst} on:change={toggleDst} />
+                    <span>...</span>
+                </label>
+            </div>
+        {/if}
+
+
     </div>
 
-    {/if}
+    <div class="kbt-section">
+        <div class="kbt-section-header" on:click={() => showWSPanel = !showWSPanel}>
+            <span>🔵 WeatherScore</span>
+            <span>{showWSPanel ? '▲' : '▼'}</span>
+        </div>
+        {#if showWSPanel}
+            <div style="padding:6px 4px">
+                <label class="kbt-checkbox">
+                    <input type="checkbox" bind:checked={showDst} on:change={toggleDst} />
+                    <span>WheatherScore information coming here soon : use the best weather model at sea</span>
+                </label>
+            </div>
+        {/if}
+
+
+    </div>
 </div>
 
 <script lang="ts">
