@@ -1,99 +1,98 @@
-<div class="kbt-panel">
-    <div class="kbt-header">
-        <span class="kbt-header__icon">⛵</span>
-        <span class="kbt-header__title">Multi-Routes Reader</span>
-        <div class="kbt-header-actions">
-            <button class="kbt-btn-minimize" on:click={toggleMinimize} title="Minimize/Expand">
+<div class="nt-panel">
+    <div class="nt-header">
+        <span class="nt-header__icon">⛵</span>
+        <span class="nt-header__title">Nav tool</span>
+        <div class="nt-header-actions">
+            <button class="nt-btn-minimize" on:click={toggleMinimize} title="Minimize/Expand">
                 {isMinimized ? '🔼' : '🔽'}
             </button>
-            <button class="kbt-header__close" on:click={() => bcast.emit('rqstOpen', 'menu')}>✕</button>
+            <button class="nt-header__close" on:click={() => bcast.emit('rqstOpen', 'menu')}>✕</button>
         </div>
     </div>
 
     <div
-        class="kbt-drop"
-        class:kbt-drop--active={isDragging}
+        class="nt-drop"
+        class:nt-drop--active={isDragging}
         on:dragover|preventDefault={() => (isDragging = true)}
         on:dragleave={() => (isDragging = false)}
         on:drop|preventDefault={handleDrop}
         on:click={() => fileInput.click()}
     >
-        <span>📂 Charger un fichier CSV / XLSX</span>
-        <span class="kbt-hint">Glisser-déposer ou cliquer (Tactics / SimSail / Adrena)</span>
+        <span>📂 Load a CSV / XLSX file</span>
+        <span class="nt-hint">Drag & drop or click (Tactics / SimSail / Adrena)</span>
         <input bind:this={fileInput} type="file" accept=".csv,.xlsx,.xls" multiple on:change={handleFileChange} style="display: none;" />
     </div>
 
     {#if !isMinimized}
 
     {#if routes.length > 0}
-        <!-- Bloc horaire -->
-        <div class="kbt-info">
-            <div class="kbt-time-row">
-                <span class="kbt-tz-label">🌍 Windy (UTC)</span>
-                <span class="kbt-tz-val kbt-tz-utc">{windyTimeUTC}</span>
+        <!-- Time block -->
+        <div class="nt-info">
+            <div class="nt-time-row">
+                <span class="nt-tz-label">🌍 Windy (UTC)</span>
+                <span class="nt-tz-val nt-tz-utc">{windyTimeUTC}</span>
             </div>
-            <div class="kbt-time-row">
-                <span class="kbt-tz-label">💻 Ordi ({localTzName})</span>
-                <span class="kbt-tz-val kbt-tz-local">{windyTimeLocal}</span>
+            <div class="nt-time-row">
+                <span class="nt-tz-label">💻 Computer ({localTzName})</span>
+                <span class="nt-tz-val nt-tz-local">{windyTimeLocal}</span>
             </div>
-            <div class="kbt-time-row">
-                <span class="kbt-tz-label">📄 CSV (UTC{csvTimezoneOffset >= 0 ? '+' : ''}{csvTimezoneOffset + manualOffset})</span>
-                <span class="kbt-tz-val kbt-tz-csv">{windyTimeCSV}</span>
+            <div class="nt-time-row">
+                <span class="nt-tz-label">📄 CSV (UTC{csvTimezoneOffset >= 0 ? '+' : ''}{csvTimezoneOffset + manualOffset})</span>
+                <span class="nt-tz-val nt-tz-csv">{windyTimeCSV}</span>
             </div>
 
             {#if detectedTz !== null}
-                <div class="kbt-tz-detected">✅ Fuseau détecté dans le CSV : UTC{detectedTz >= 0 ? '+' : ''}{detectedTz}</div>
+                <div class="nt-tz-detected">✅ Timezone detected in CSV: UTC{detectedTz >= 0 ? '+' : ''}{detectedTz}</div>
             {:else}
-                <div class="kbt-tz-warn">⚠️ Fuseau CSV non détecté — UTC+0 supposé</div>
+                <div class="nt-tz-warn">⚠️ CSV timezone not detected — assuming UTC+0</div>
             {/if}
 
-            <div class="kbt-tz-controls">
-                <label class="kbt-tz-ctrl-label">
-                    Fuseau CSV
-                    <select bind:value={csvTimezoneOffset} on:change={onTimezoneChange} class="kbt-select-format">
+            <div class="nt-tz-controls">
+                <label class="nt-tz-ctrl-label">
+                    CSV timezone
+                    <select bind:value={csvTimezoneOffset} on:change={onTimezoneChange} class="nt-select-format">
                         {#each tzOptions as h}
                             <option value={h}>UTC{h >= 0 ? '+' : ''}{h}</option>
                         {/each}
                     </select>
                 </label>
-                <label class="kbt-tz-ctrl-label">
-                    Décalage manuel
-                    <div class="kbt-offset-row">
+                <label class="nt-tz-ctrl-label">
+                    Manual offset
+                    <div class="nt-offset-row">
                         <input
                             type="number"
                             bind:value={manualOffset}
                             on:change={onTimezoneChange}
                             min="-24" max="24"
-                            class="kbt-offset-input"
+                            class="nt-offset-input"
                         />
                         <span>h</span>
                     </div>
                 </label>
             </div>
 
-            <div class="kbt-status">✅ {routes.length} route{routes.length > 1 ? 's' : ''} chargée{routes.length > 1 ? 's' : ''}</div>
+            <div class="nt-status">✅ {routes.length} route{routes.length > 1 ? 's' : ''} loaded</div>
         </div>
     {/if}
 
     {#if error}
-        <div class="kbt-error">⚠️ {error}</div>
+        <div class="nt-error">⚠️ {error}</div>
     {/if}
 
-    <!-- Liste des routes chargées -->
+    <!-- Loaded routes -->
     {#each routes as route, idx}
-        <div class="kbt-route-card">
-            <div class="kbt-route-header">
+        <div class="nt-route-card">
+            <div class="nt-route-header">
                 <input type="checkbox" bind:checked={route.visible} on:change={() => toggleRoute(idx)} />
-                <span class="kbt-route-name" style="color: {route.color}">{route.name}</span>
-                <button class="kbt-btn-remove" on:click={() => removeRoute(idx)}>🗑</button>
+                <span class="nt-route-name" style="color: {route.color}">{route.name}</span>
+                <button class="nt-btn-remove" on:click={() => removeRoute(idx)}>🗑</button>
             </div>
 
-            <!-- Sélecteur de couleur -->
-            <div class="kbt-color-picker">
+            <div class="nt-color-picker">
                 {#each COLORS as color}
                     <button
-                        class="kbt-color-swatch"
-                        class:kbt-color-swatch--active={route.color === color}
+                        class="nt-color-swatch"
+                        class:nt-color-swatch--active={route.color === color}
                         style="background: {color};"
                         on:click={() => changeRouteColor(idx, color)}
                         title={color}
@@ -101,14 +100,14 @@
                 {/each}
             </div>
 
-            <div class="kbt-route-info">
-                <span class="kbt-meta">{route.waypoints.length} pts</span>
+            <div class="nt-route-info">
+                <span class="nt-meta">{route.waypoints.length} pts</span>
                 <select
                     bind:value={route.format}
                     on:change={() => reloadRoute(idx)}
-                    class="kbt-select-format"
+                    class="nt-select-format"
                     disabled={route.format === 'adrena'}
-                    title={route.format === 'adrena' ? 'Format fixé (fichier Excel Adrena)' : ''}
+                    title={route.format === 'adrena' ? 'Format fixed (Adrena Excel file)' : ''}
                 >
                     <option value="auto">Auto</option>
                     <option value="tactics">Tactics</option>
@@ -118,84 +117,83 @@
             </div>
 
             {#if route.visible}
-                <div class="kbt-barbs-options">
-                    <label class="kbt-checkbox">
+                <div class="nt-barbs-options">
+                    <label class="nt-checkbox">
                         <input type="checkbox" bind:checked={route.showWind} on:change={() => updateBarbs(idx)} />
-                        <span>💨 Vent</span>
+                        <span>💨 Wind</span>
                     </label>
-                    <label class="kbt-checkbox">
+                    <label class="nt-checkbox">
                         <input type="checkbox" bind:checked={route.showCurrent} on:change={() => updateBarbs(idx)} />
-                        <span>🌊 Courant</span>
+                        <span>🌊 Current</span>
                     </label>
-                    <label class="kbt-checkbox">
+                    <label class="nt-checkbox">
                         <input type="checkbox" bind:checked={route.showWaves} on:change={() => updateBarbs(idx)} />
-                        <span>〰 Vagues</span>
+                        <span>〰 Waves</span>
                     </label>
                 </div>
-                <button class="kbt-btn-fit" on:click={() => fitRoute(idx)}>📍 Centrer</button>
+                <button class="nt-btn-fit" on:click={() => fitRoute(idx)}>📍 Center</button>
             {/if}
         </div>
     {/each}
 
     <!-- ═══════════════════════════════════════════════
-         BLOC POINTS MANUELS
+         MANUAL POINTS
     ═══════════════════════════════════════════════ -->
-    <div class="kbt-section">
-        <div class="kbt-section-header" on:click={() => showPointsPanel = !showPointsPanel}>
-            <span>📍 Points manuels</span>
+    <div class="nt-section">
+        <div class="nt-section-header" on:click={() => showPointsPanel = !showPointsPanel}>
+            <span>📍 Manual points</span>
             <span>{showPointsPanel ? '▲' : '▼'}</span>
         </div>
         {#if showPointsPanel}
-            <div class="kbt-point-form">
-                <div class="kbt-point-row">
-                    <label class="kbt-point-label">Lat</label>
-                    <input class="kbt-point-input" bind:value={ptLatDeg}  placeholder="48"      type="number" min="0"   max="90" />
-                    <span class="kbt-point-sep">°</span>
-                    <input class="kbt-point-input" bind:value={ptLatMin}  placeholder="12.345"  type="number" min="0"   max="60" step="0.001" />
-                    <select class="kbt-point-ns" bind:value={ptLatNS}>
+            <div class="nt-point-form">
+                <div class="nt-point-row">
+                    <label class="nt-point-label">Lat</label>
+                    <input class="nt-point-input" bind:value={ptLatDeg}  placeholder="48"      type="number" min="0"   max="90" />
+                    <span class="nt-point-sep">°</span>
+                    <input class="nt-point-input" bind:value={ptLatMin}  placeholder="12.345"  type="number" min="0"   max="60" step="0.001" />
+                    <select class="nt-point-ns" bind:value={ptLatNS}>
                         <option>N</option><option>S</option>
                     </select>
                 </div>
-                <div class="kbt-point-row">
-                    <label class="kbt-point-label">Lon</label>
-                    <input class="kbt-point-input" bind:value={ptLonDeg}  placeholder="002"     type="number" min="0"   max="180" />
-                    <span class="kbt-point-sep">°</span>
-                    <input class="kbt-point-input" bind:value={ptLonMin}  placeholder="34.567"  type="number" min="0"   max="60" step="0.001" />
-                    <select class="kbt-point-ns" bind:value={ptLonEW}>
+                <div class="nt-point-row">
+                    <label class="nt-point-label">Lon</label>
+                    <input class="nt-point-input" bind:value={ptLonDeg}  placeholder="002"     type="number" min="0"   max="180" />
+                    <span class="nt-point-sep">°</span>
+                    <input class="nt-point-input" bind:value={ptLonMin}  placeholder="34.567"  type="number" min="0"   max="60" step="0.001" />
+                    <select class="nt-point-ns" bind:value={ptLonEW}>
                         <option>W</option><option>E</option>
                     </select>
                 </div>
-                <input class="kbt-point-name-input" bind:value={ptName} placeholder="Nom du point (optionnel)" />
-                <!-- Sélecteur couleur -->
-                <div class="kbt-color-picker" style="margin:6px 0 8px">
+                <input class="nt-point-name-input" bind:value={ptName} placeholder="Point name (optional)" />
+                <div class="nt-color-picker" style="margin:6px 0 8px">
                     {#each COLORS as color}
                         <button
-                            class="kbt-color-swatch"
-                            class:kbt-color-swatch--active={ptColor === color}
+                            class="nt-color-swatch"
+                            class:nt-color-swatch--active={ptColor === color}
                             style="background:{color}"
                             on:click={() => ptColor = color}
                         ></button>
                     {/each}
                 </div>
-                <button class="kbt-btn-fit" on:click={addManualPoint}>➕ Ajouter</button>
-                {#if ptError}<div class="kbt-error">{ptError}</div>{/if}
+                <button class="nt-btn-fit" on:click={addManualPoint}>➕ Add</button>
+                {#if ptError}<div class="nt-error">{ptError}</div>{/if}
             </div>
 
             {#each manualPoints as pt, idx}
-                <div class="kbt-route-card" style="margin-top:6px">
-                    <div class="kbt-route-header">
+                <div class="nt-route-card" style="margin-top:6px">
+                    <div class="nt-route-header">
                         <input type="checkbox" bind:checked={pt.visible} on:change={() => togglePoint(idx)} />
-                        <span class="kbt-route-name" style="color:{pt.color}">{pt.name}</span>
-                        <button class="kbt-btn-remove" on:click={() => removePoint(idx)}>🗑</button>
+                        <span class="nt-route-name" style="color:{pt.color}">{pt.name}</span>
+                        <button class="nt-btn-remove" on:click={() => removePoint(idx)}>🗑</button>
                     </div>
-                    <div style="font-size:10px;color:#889;padding:0 2px 4px">
+                    <div style="font-size:10px;color:#aaa;padding:0 2px 4px">
                         {formatDMS(pt.lat, 'NS')} — {formatDMS(pt.lon, 'EW')}
                     </div>
-                    <div class="kbt-color-picker">
+                    <div class="nt-color-picker">
                         {#each COLORS as color}
                             <button
-                                class="kbt-color-swatch"
-                                class:kbt-color-swatch--active={pt.color === color}
+                                class="nt-color-swatch"
+                                class:nt-color-swatch--active={pt.color === color}
                                 style="background:{color}"
                                 on:click={() => changePointColor(idx, color)}
                             ></button>
@@ -207,103 +205,137 @@
     </div>
 
     <!-- ═══════════════════════════════════════════════
-         BLOC DST / TSS
+         TSS
     ═══════════════════════════════════════════════ -->
-    <div class="kbt-section">
-        <div class="kbt-section-header" on:click={() => showDstPanel = !showDstPanel}>
+    <div class="nt-section">
+        <div class="nt-section-header" on:click={() => showTssPanel = !showTssPanel}>
             <span>🚢 TSS</span>
-            <span>{showDstPanel ? '▲' : '▼'}</span>
+            <span>{showTssPanel ? '▲' : '▼'}</span>
         </div>
-        {#if showDstPanel}
+        {#if showTssPanel}
             <div style="padding:6px 4px">
-                <label class="kbt-checkbox">
-                    <input type="checkbox" bind:checked={showDst} on:change={toggleDst} />
-                    <span>Afficher les DST (Ouessant + Casquets)</span>
+                <label class="nt-checkbox">
+                    <input type="checkbox" bind:checked={showTss} on:change={toggleTss} />
+                    <span>Show Traffic Separation Schemes (Ouessant + Casquets)</span>
                 </label>
             </div>
         {/if}
     </div>
 
     <!-- ═══════════════════════════════════════════════
-         BLOC OPENSEAMAP (balisage précis type ECDIS)
+         OPENSEAMAP (ECDIS-style seamarks, auto-loaded tiles)
     ═══════════════════════════════════════════════ -->
-    <div class="kbt-section">
-        <div class="kbt-section-header" on:click={() => showOSMPanel = !showOSMPanel}>
+    <div class="nt-section">
+        <div class="nt-section-header" on:click={() => showOSMPanel = !showOSMPanel}>
             <span>🗺️ OpenSeaMap</span>
             <span>{showOSMPanel ? '▲' : '▼'}</span>
         </div>
         {#if showOSMPanel}
             <div style="padding:8px 6px">
-                <div
-                    class="kbt-drop kbt-drop--compact"
-                    on:click={() => seamarkFileInput.click()}
-                >
-                    <span>📥 Importer la donnée (GeoJSON)</span>
-                    <span class="kbt-hint">Fichier généré par le script Python (seamarks.geojson)</span>
-                    <input bind:this={seamarkFileInput} type="file" accept=".geojson,.json" on:change={handleSeamarkFile} style="display:none;" />
-                </div>
+                <label class="nt-checkbox">
+                    <input type="checkbox" bind:checked={seamarksVisible} on:change={renderSeamarks} />
+                    <span>Show seamarks</span>
+                </label>
 
-                {#if seamarkCount > 0}
-                    <label class="kbt-checkbox" style="margin-top:8px">
-                        <input type="checkbox" bind:checked={seamarksVisible} on:change={renderSeamarks} />
-                        <span>Afficher les balises ({seamarkCount})</span>
-                    </label>
-                    <div class="kbt-hint" style="margin-top:4px">
-                        Les balises apparaissent progressivement en zoomant (importance décroissante).
+                {#if currentZoom < TILE_MIN_ZOOM}
+                    <div class="nt-hint" style="margin-top:8px">
+                        Zoom in to level {TILE_MIN_ZOOM}+ to load nautical chart tiles ({currentZoom.toFixed(0)} currently).
                     </div>
-                    <button class="kbt-btn-remove" style="width:100%;margin-top:8px" on:click={clearSeamarks}>🗑 Effacer la donnée</button>
+                {:else}
+                    <div class="nt-hint" style="margin-top:8px">
+                        {loadedTileCount} tile{loadedTileCount > 1 ? 's' : ''} loaded · {seamarkFeatureCount} object{seamarkFeatureCount > 1 ? 's' : ''}
+                        {#if tilesLoading}<span class="nt-loading"> · loading…</span>{/if}
+                    </div>
                 {/if}
 
-                {#if seamarkError}<div class="kbt-error">{seamarkError}</div>{/if}
+                {#if seamarkError}<div class="nt-error">{seamarkError}</div>{/if}
             </div>
         {/if}
     </div>
 
     <!-- ═══════════════════════════════════════════════
-         BLOC OUTILS DE MESURE (distance / relèvement)
+         MEASURING TOOLS (distance / bearing)
     ═══════════════════════════════════════════════ -->
-    <div class="kbt-section">
-        <div class="kbt-section-header" on:click={() => showmeasurePanel = !showmeasurePanel}>
-            <span>📏 Outils de mesure</span>
+    <div class="nt-section">
+        <div class="nt-section-header" on:click={() => showmeasurePanel = !showmeasurePanel}>
+            <span>📏 Measuring tools</span>
             <span>{showmeasurePanel ? '▲' : '▼'}</span>
         </div>
         {#if showmeasurePanel}
             <div style="padding:8px 6px">
-                <label class="kbt-checkbox">
+                <label class="nt-checkbox">
                     <input type="checkbox" bind:checked={measureActive} on:change={toggleMeasure} />
-                    <span>Activer (double-clic sur la carte)</span>
+                    <span>Enable (double-click on the map)</span>
                 </label>
-                <div class="kbt-hint" style="margin-top:6px">
-                    1er double-clic = départ, 2e double-clic = arrivée. Distance en milles nautiques, relèvement vrai.
+                <div class="nt-hint" style="margin-top:6px">
+                    1st double-click = start, 2nd = end. Distance in nautical miles, true bearing.
                 </div>
 
                 {#if measureStart}
-                    <div class="kbt-tz-warn" style="margin-top:8px">🎯 Point de départ posé — double-cliquez pour l'arrivée</div>
+                    <div class="nt-tz-warn" style="margin-top:8px">🎯 Start point set — double-click to set the end point</div>
                 {/if}
 
                 {#if measurements.length > 0}
-                    <div class="kbt-measure-list">
-                        {#each measurements as m, mi}
-                            <div class="kbt-measure-item">
-                                <span>#{mi + 1} — {m.distNM.toFixed(2)} MN / {m.brg.toFixed(0)}°</span>
-                                <button class="kbt-btn-remove" on:click={() => removeMeasurement(m.id)}>🗑</button>
+                    <div class="nt-measure-list">
+                        {#each measurements as m, mi (m.id)}
+                            <div class="nt-measure-item">
+                                <div class="nt-measure-item-row">
+                                    <span>#{mi + 1} — {m.distNM.toFixed(2)} NM / {m.brg.toFixed(0)}°</span>
+                                    <div class="nt-measure-item-actions">
+                                        <button class="nt-btn-edit" on:click={() => m.editing = !m.editing}>{m.editing ? '▲' : '✏️'}</button>
+                                        <button class="nt-btn-remove" on:click={() => removeMeasurement(m.id)}>🗑</button>
+                                    </div>
+                                </div>
+
+                                {#if m.editing}
+                                    <div class="nt-measure-edit">
+                                        <div class="nt-measure-lock-row">
+                                            <label class="nt-radio">
+                                                <input type="radio" name="lock-{m.id}" checked={m.locked === 'start'} on:change={() => m.locked = 'start'} />
+                                                <span>Lock A</span>
+                                            </label>
+                                            <label class="nt-radio">
+                                                <input type="radio" name="lock-{m.id}" checked={m.locked === 'end'} on:change={() => m.locked = 'end'} />
+                                                <span>Lock B</span>
+                                            </label>
+                                        </div>
+
+                                        <div class="nt-measure-point-grid">
+                                            <span class="nt-measure-point-label">A (lat/lon)</span>
+                                            <input class="nt-measure-coord-input" type="number" step="0.0001" bind:value={m.startLat} on:change={() => onMeasureLatLonEdit(m)} />
+                                            <input class="nt-measure-coord-input" type="number" step="0.0001" bind:value={m.startLon} on:change={() => onMeasureLatLonEdit(m)} />
+                                        </div>
+                                        <div class="nt-measure-point-grid">
+                                            <span class="nt-measure-point-label">B (lat/lon)</span>
+                                            <input class="nt-measure-coord-input" type="number" step="0.0001" bind:value={m.endLat} on:change={() => onMeasureLatLonEdit(m)} />
+                                            <input class="nt-measure-coord-input" type="number" step="0.0001" bind:value={m.endLon} on:change={() => onMeasureLatLonEdit(m)} />
+                                        </div>
+
+                                        <div class="nt-measure-point-grid">
+                                            <span class="nt-measure-point-label">Distance (NM) / Bearing (°)</span>
+                                            <input class="nt-measure-coord-input" type="number" step="0.01" bind:value={m.distNM} on:change={() => onMeasureDistBrgEdit(m)} />
+                                            <input class="nt-measure-coord-input" type="number" step="1" bind:value={m.brg} on:change={() => onMeasureDistBrgEdit(m)} />
+                                        </div>
+                                        <div class="nt-hint">Editing distance/bearing moves the point that is NOT locked.</div>
+                                    </div>
+                                {/if}
                             </div>
                         {/each}
                     </div>
-                    <button class="kbt-btn-remove" style="width:100%;margin-top:8px" on:click={clearAllMeasurements}>🗑 Tout effacer</button>
+                    <button class="nt-btn-remove" style="width:100%;margin-top:8px" on:click={clearAllMeasurements}>🗑 Clear all</button>
                 {/if}
             </div>
         {/if}
     </div>
 
-    <div class="kbt-section">
-        <div class="kbt-section-header" on:click={() => showWSPanel = !showWSPanel}>
+    <div class="nt-section">
+        <div class="nt-section-header" on:click={() => showWSPanel = !showWSPanel}>
             <span>🔵 WeatherScore</span>
             <span>{showWSPanel ? '▲' : '▼'}</span>
         </div>
         {#if showWSPanel}
             <div style="padding:6px 4px">
-                <span class="kbt-hint">WeatherScore : bientôt ici — sélection automatique du meilleur modèle météo en mer.</span>
+                <span class="nt-hint">WeatherScore: coming soon — automatic selection of the best weather model at sea.</span>
             </div>
         {/if}
     </div>
@@ -316,52 +348,38 @@
     import { onDestroy, onMount } from 'svelte';
     import { map } from "@windy/map";
     import store from '@windy/store';
+    import { TILE_LOADERS } from './tiles/tileIndex';
 
-    // --- ÉTAT ---
+    // --- STATE ---
     let routes = [];
     let isDragging = false;
     let error = "";
     let fileInput;
     let isMinimized = false;
 
-    // Heures affichées
     let windyTimeUTC = '';
     let windyTimeLocal = '';
     let windyTimeCSV = '';
     let localTzName = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-    // Gestion des fuseaux horaires
     let csvTimezoneOffset = 0;
     let manualOffset = 0;
     let detectedTz = null;
 
     const tzOptions = Array.from({ length: 25 }, (_, i) => i - 12);
 
-    // Calques Leaflet
     let routeLayers = [];
     let boatLayers = [];
     let barbLayers = [];
     let unsubTime;
 
-    // --- CONFIGURATION ---
-    // Portefeuille de 12 couleurs
     const COLORS = [
-        '#e74c3c', // rouge
-        '#3498db', // bleu
-        '#2ecc71', // vert
-        '#f39c12', // orange
-        '#9b59b6', // violet
-        '#1abc9c', // turquoise
-        '#e67e22', // orange foncé
-        '#f1c40f', // jaune
-        '#e91e8c', // rose
-        '#00bcd4', // cyan
-        '#8bc34a', // vert clair
-        '#ffffff', // blanc
+        '#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c',
+        '#e67e22', '#f1c40f', '#e91e8c', '#00bcd4', '#8bc34a', '#ffffff',
     ];
 
     // -------------------------------------------------------------------
-    // GESTION DU TEMPS
+    // TIME HANDLING
     // -------------------------------------------------------------------
 
     function totalOffsetMs(): number {
@@ -398,7 +416,7 @@
     }
 
     // -------------------------------------------------------------------
-    // CORRECTION CHANGEMENT DE MOIS / ANNÉE
+    // MONTH / YEAR ROLLOVER FIX
     // -------------------------------------------------------------------
 
     function fixTimestampRollover(waypoints: any[]): void {
@@ -417,7 +435,7 @@
     }
 
     // -------------------------------------------------------------------
-    // DÉTECTION DU FUSEAU DANS LES HEADERS
+    // HEADER TIMEZONE DETECTION
     // -------------------------------------------------------------------
 
     function detectTimezone(header: string[]): number | null {
@@ -430,7 +448,7 @@
     }
 
     // -------------------------------------------------------------------
-    // PARSERS UTILITAIRES
+    // PARSING UTILITIES
     // -------------------------------------------------------------------
 
     function cleanNum(val: string): number {
@@ -490,7 +508,7 @@
     }
 
     // -------------------------------------------------------------------
-    // PARSERS PAR FORMAT
+    // FORMAT PARSERS
     // -------------------------------------------------------------------
 
     function parseTacticsCSV(text: string): any[] {
@@ -694,7 +712,7 @@
     }
 
     // -------------------------------------------------------------------
-    // GESTION DES FICHIERS
+    // FILE HANDLING
     // -------------------------------------------------------------------
 
     async function handleFiles(files: FileList | File[]) {
@@ -721,7 +739,7 @@
                 }
 
                 if (waypoints.length === 0) {
-                    error = `${file.name} : aucune donnée valide`;
+                    error = `${file.name}: no valid data found`;
                     continue;
                 }
 
@@ -750,14 +768,14 @@
                 updateTimeDisplay(store.get('timestamp'));
 
             } catch (e) {
-                error = `${file.name} : erreur de lecture`;
+                error = `${file.name}: read error`;
                 console.error(e);
             }
         }
     }
 
     // -------------------------------------------------------------------
-    // GESTION DES ROUTES
+    // ROUTE MANAGEMENT
     // -------------------------------------------------------------------
 
     function toggleRoute(idx: number) {
@@ -785,7 +803,7 @@
 
     function changeRouteColor(idx: number, color: string) {
         routes[idx] = { ...routes[idx], color };
-        routes = [...routes]; // force reactivity
+        routes = [...routes];
         drawFullRoute(idx);
         updateBoatPosition(store.get('timestamp'));
         updateBarbs(idx);
@@ -833,7 +851,7 @@
     }
 
     // -------------------------------------------------------------------
-    // AFFICHAGE CARTE
+    // MAP DISPLAY (routes)
     // -------------------------------------------------------------------
 
     function drawFullRoute(idx: number) {
@@ -860,8 +878,8 @@
         });
     }
 
-    // Différence angulaire par le chemin le plus court (évite les demi-tours
-    // fantômes du bateau quand on interpole un cap autour de 0°/360°).
+    // Shortest-path angular interpolation (avoids fake 180 deg spins
+    // when the boat heading crosses the 0/360 boundary).
     function shortestAngleLerp(a: number, b: number, ratio: number): number {
         let diff = ((b - a + 540) % 360) - 180;
         return (a + diff * ratio + 360) % 360;
@@ -937,7 +955,7 @@
     }
 
     // -------------------------------------------------------------------
-    // BARBULES NORMALISÉES
+    // NORMALIZED WEATHER BARBS
     // -------------------------------------------------------------------
 
     function createWindBarb(lat: number, lon: number, direction: number, speedKnots: number) {
@@ -978,7 +996,7 @@
         });
 
         return L.marker([lat, lon], { icon })
-            .bindTooltip(`Vent: ${speedKnots.toFixed(1)}kt (barbe ${roundedSpeed}kt) de ${direction.toFixed(0)}°`, {
+            .bindTooltip(`Wind: ${speedKnots.toFixed(1)}kt (barb ${roundedSpeed}kt) from ${direction.toFixed(0)}°`, {
                 permanent: false,
                 direction: 'top'
             });
@@ -1006,7 +1024,7 @@
         });
 
         return L.marker([lat, lon], { icon })
-            .bindTooltip(`Courant: ${driftKnots.toFixed(1)}kt vers ${setDirection.toFixed(0)}°`, {
+            .bindTooltip(`Current: ${driftKnots.toFixed(1)}kt towards ${setDirection.toFixed(0)}°`, {
                 permanent: false,
                 direction: 'top'
             });
@@ -1035,7 +1053,7 @@
         });
 
         return L.marker([lat, lon], { icon })
-            .bindTooltip(`Houle: ${heightMeters.toFixed(1)}m${periodSeconds ? ', T=' + periodSeconds.toFixed(0) + 's' : ''} vers ${waveDirection.toFixed(0)}°`, {
+            .bindTooltip(`Swell: ${heightMeters.toFixed(1)}m${periodSeconds ? ', T=' + periodSeconds.toFixed(0) + 's' : ''} towards ${waveDirection.toFixed(0)}°`, {
                 permanent: false,
                 direction: 'top'
             });
@@ -1077,7 +1095,7 @@
     }
 
     // -------------------------------------------------------------------
-    // EVENT HANDLERS (fichiers routes)
+    // FILE EVENT HANDLERS (routes)
     // -------------------------------------------------------------------
 
     const handleDrop = (e: DragEvent) => {
@@ -1087,7 +1105,7 @@
 
     const handleFileChange = (e: Event) => handleFiles((e.target as HTMLInputElement).files);
 
-    // ─── POINTS MANUELS ───────────────────────────────────────
+    // ─── MANUAL POINTS ─────────────────────────────────────────
     let showPointsPanel = false;
     let manualPoints = [];
     let pointLayers  = [];
@@ -1119,7 +1137,7 @@
         const lat = parseDMtoDD(String(ptLatDeg), String(ptLatMin), ptLatNS);
         const lon = parseDMtoDD(String(ptLonDeg), String(ptLonMin), ptLonEW);
         if (lat === null || lon === null) {
-            ptError = 'Coordonnées invalides';
+            ptError = 'Invalid coordinates';
             return;
         }
         const name  = ptName.trim() || `Point ${manualPoints.length + 1}`;
@@ -1173,14 +1191,14 @@
         drawPoint(idx);
     }
 
-    // ─── DST / TSS ────────────────────────────────────────────
-    let showDstPanel = false;
-    let showDst      = false;
-    let dstLayer     = null;
+    // ─── TSS ────────────────────────────────────────────────────
+    let showTssPanel = false;
+    let showTss      = false;
+    let tssLayer      = null;
 
-    const DST_ZONES = [
+    const TSS_ZONES = [
         {
-            name: 'Ouessant — Forme Sud',
+            name: 'Ouessant TSS — South lane',
             color: '#e67e22', fill: 0.20,
             coords: [
                 [48.633222, -5.215239],
@@ -1190,7 +1208,7 @@
             ]
         },
         {
-            name: 'Ouessant — Forme Centrale Sud',
+            name: 'Ouessant TSS — Central-south lane',
             color: '#e67e22', fill: 0.20,
             coords: [
                 [48.806764, -5.420558],
@@ -1201,7 +1219,7 @@
             ]
         },
         {
-            name: 'Ouessant — Forme Centrale Nord',
+            name: 'Ouessant TSS — Central-north lane',
             color: '#e67e22', fill: 0.20,
             coords: [
                 [48.946758, -5.544156],
@@ -1213,7 +1231,7 @@
             ]
         },
         {
-            name: 'Ouessant — Forme Nord',
+            name: 'Ouessant TSS — North lane',
             color: '#e67e22', fill: 0.20,
             coords: [
                 [49.031017, -5.616939],
@@ -1225,7 +1243,7 @@
             ]
         },
         {
-            name: 'Casquets — Forme Nord',
+            name: 'Casquets TSS — North lane',
             color: '#9b59b6', fill: 0.20,
             coords: [
                 [50.143308, -2.471806],
@@ -1235,7 +1253,7 @@
             ]
         },
         {
-            name: 'Casquets — Forme Centre',
+            name: 'Casquets TSS — Central lane',
             color: '#9b59b6', fill: 0.20,
             coords: [
                 [50.031844, -2.425800],
@@ -1245,7 +1263,7 @@
             ]
         },
         {
-            name: 'Casquets — Forme Sud',
+            name: 'Casquets TSS — South lane',
             color: '#9b59b6', fill: 0.20,
             coords: [
                 [49.870681, -2.359119],
@@ -1256,20 +1274,20 @@
         }
     ];
 
-    function toggleDst() {
-        if (showDst) {
-            drawDst();
+    function toggleTss() {
+        if (showTss) {
+            drawTss();
         } else {
-            dstLayer?.remove();
-            dstLayer = null;
+            tssLayer?.remove();
+            tssLayer = null;
         }
     }
 
-    function drawDst() {
-        dstLayer?.remove();
-        dstLayer = L.layerGroup().addTo(map);
+    function drawTss() {
+        tssLayer?.remove();
+        tssLayer = L.layerGroup().addTo(map);
 
-        DST_ZONES.forEach(zone => {
+        TSS_ZONES.forEach(zone => {
             try {
                 const poly = L.polygon(zone.coords, {
                     color:       zone.color,
@@ -1277,30 +1295,124 @@
                     fillOpacity: zone.fill,
                     weight:      2,
                     opacity:     0.85
-                }).addTo(dstLayer);
+                }).addTo(tssLayer);
 
                 try { poly.bindPopup(`<b>${zone.name}</b>`, { closeButton: false }); } catch(e) {}
 
             } catch(e) {
-                console.warn('[DST] Erreur zone', zone.name, e);
+                console.warn('[TSS] Zone error', zone.name, e);
             }
         });
     }
 
-    // ─── OPENSEAMAP (balisage précis, généré par le script Python) ────
-    let showOSMPanel     = false;
-    let seamarkFileInput;
-    let seamarkFeatures  = [];
-    let seamarkCount     = 0;
-    let seamarksVisible  = true;
-    let seamarkLayer     = null;
-    let seamarkError     = '';
+    // ─── OPENSEAMAP — auto-loaded grid tiles ───────────────────
+    // Grid convention (see tools/split_tiles.py):
+    //   longitude band (number, 1-36), 10 deg wide, starting at 0E going east
+    //   latitude band (letter, A-R), 10 deg wide, starting at 90N
+    //   tile code = "{band}{letter}", e.g. "1A" = 90N-80N/0E-10E, "3J" = 0S-10S/20E-30E
+    const TILE_MIN_ZOOM = 6;
 
-    // Palette IALA / balisage courante (couleurs OSM → hex)
-    const SEAMARK_COLORS = {
+    let showOSMPanel      = false;
+    let seamarksVisible   = true;
+    let seamarkLayer      = null;
+    let seamarkError      = '';
+    let currentZoom        = 0;
+    let tilesLoading       = false;
+    let loadedTileCount    = 0;
+    let seamarkFeatureCount = 0;
+
+    const tileCache: Record<string, any[]> = {};   // code -> array of GeoJSON features
+    const loadingTiles = new Set<string>();
+
+    function lonBand(lon: number): number {
+        const l = ((lon % 360) + 360) % 360;
+        return Math.floor(l / 10) + 1; // 1..36
+    }
+
+    function latBandLetter(lat: number): string {
+        let idx = Math.floor((90 - lat) / 10);
+        idx = Math.max(0, Math.min(17, idx));
+        return String.fromCharCode(65 + idx); // A..R
+    }
+
+    function tilesForBounds(bounds: any): string[] {
+        const south = bounds.getSouth(), north = bounds.getNorth();
+        const west  = bounds.getWest(),  east  = bounds.getEast();
+
+        let latTop    = Math.floor((90 - north) / 10);
+        let latBottom = Math.floor((90 - south) / 10);
+        latTop    = Math.max(0, Math.min(17, latTop));
+        latBottom = Math.max(0, Math.min(17, latBottom));
+
+        let w = ((west % 360) + 360) % 360;
+        let e = ((east % 360) + 360) % 360;
+        if (e <= w) e += 360; // handle wraparound
+
+        const lonStart = Math.floor(w / 10);
+        const lonEnd   = Math.floor((e - 0.0001) / 10);
+
+        const codes: string[] = [];
+        for (let li = latTop; li <= latBottom; li++) {
+            const letter = String.fromCharCode(65 + li);
+            for (let ni = lonStart; ni <= lonEnd; ni++) {
+                const band = ((ni % 36) + 36) % 36 + 1;
+                codes.push(`${band}${letter}`);
+            }
+        }
+        return codes;
+    }
+
+    async function loadVisibleTiles() {
+        currentZoom = typeof map.getZoom === 'function' ? map.getZoom() : 0;
+
+        if (currentZoom < TILE_MIN_ZOOM) {
+            renderSeamarks();
+            return;
+        }
+        if (typeof map.getBounds !== 'function') return;
+
+        const codes = tilesForBounds(map.getBounds());
+        const toLoad = codes.filter(c => !tileCache[c] && !loadingTiles.has(c) && TILE_LOADERS[c]);
+
+        if (toLoad.length === 0) {
+            renderSeamarks();
+            return;
+        }
+
+        tilesLoading = true;
+        seamarkError = '';
+
+        await Promise.all(toLoad.map(async code => {
+            loadingTiles.add(code);
+            try {
+                const mod = await TILE_LOADERS[code]();
+                const fc = mod.default ?? mod;
+                tileCache[code] = fc.features ?? [];
+            } catch (e) {
+                console.error('Tile load error', code, e);
+                seamarkError = `Failed to load tile ${code}`;
+            } finally {
+                loadingTiles.delete(code);
+            }
+        }));
+
+        loadedTileCount = Object.keys(tileCache).length;
+        tilesLoading = loadingTiles.size > 0;
+        renderSeamarks();
+    }
+
+    // ── Colour palette & light character names ─────────────────
+    const SEAMARK_COLORS: Record<string, string> = {
         red: '#e0302a', green: '#1fa34a', yellow: '#f1c40f', black: '#161616',
         white: '#ffffff', orange: '#e67e22', blue: '#2d7dd2',
-        grey: '#95a5a6', gray: '#95a5a6', amber: '#e0a020', violet: '#8e44ad'
+        grey: '#95a5a6', gray: '#95a5a6', amber: '#e0a020', violet: '#8e44ad', magenta: '#c2185b'
+    };
+
+    const LIGHT_CHARACTERS: Record<string, string> = {
+        F: 'Fixed', Fl: 'Flashing', LFl: 'Long-flashing', Oc: 'Occulting', Iso: 'Isophase',
+        Q: 'Quick', VQ: 'Very quick', UQ: 'Ultra quick', IQ: 'Interrupted quick',
+        IVQ: 'Interrupted very quick', IUQ: 'Interrupted ultra quick', Mo: 'Morse code',
+        Al: 'Alternating', FFl: 'Fixed and flashing'
     };
 
     function firstColor(raw: string | undefined): string {
@@ -1309,21 +1421,92 @@
         return SEAMARK_COLORS[first] || '#888888';
     }
 
-    function seamarkLabel(props: any): string {
-        const parts = [props.name, props.seamark_type?.replace(/_/g, ' ')].filter(Boolean);
-        return parts.join(' — ') || 'Balise';
+    function typeLabel(typ: string): string {
+        return (typ || 'seamark').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
     }
 
-    // Génère une icône simplifiée mais fidèle aux couleurs/formes IALA.
-    function buildSeamarkIcon(props: any) {
-        const typ    = props.seamark_type || '';
-        const attrs  = props.attributes || {};
-        const kids   = props.children || {};
-        const size   = 24;
+    // ── Popups: show every available attribute ──────────────────
+    function buildPopupHtml(props: any, lat?: number, lon?: number): string {
+        const rows: string[] = [];
+        const push = (label: string, val: any) => {
+            if (val === undefined || val === null || val === '') return;
+            rows.push(`<div class="nt-pop-row"><b>${label}:</b> ${val}</div>`);
+        };
 
-        const svg = (inner: string) =>
-            `<svg viewBox="0 0 40 40" width="${size}" height="${size}" style="overflow:visible">${inner}</svg>`;
+        const title = props.name || typeLabel(props.seamark_type);
+        let html = `<div class="nt-pop"><div class="nt-pop-title">${title}</div>`;
+        html += `<div class="nt-pop-row"><b>Type:</b> ${typeLabel(props.seamark_type)}</div>`;
 
+        const attrs = props.attributes || {};
+        if (attrs.category) push('Category', attrs.category.replace(/_/g, ' '));
+        if (attrs.colour)   push('Colour', attrs.colour.replace(/;/g, ' / '));
+        if (attrs.shape)    push('Shape', attrs.shape.replace(/_/g, ' '));
+        if (attrs.water_level) push('Water level', attrs.water_level.replace(/_/g, ' '));
+
+        const kids = props.children || {};
+        if (kids.light) {
+            const light = kids.light;
+            const numbered = Object.keys(light).filter(k => /^\d+:/.test(k));
+            if (numbered.length > 0) {
+                const groups: Record<string, any> = {};
+                numbered.forEach(k => {
+                    const [n, field] = k.split(':');
+                    groups[n] = groups[n] || {};
+                    groups[n][field] = light[k];
+                });
+                Object.keys(groups).sort((a, b) => +a - +b).forEach(n => {
+                    html += lightSectorRow(groups[n]);
+                });
+            } else {
+                html += lightSectorRow(light);
+            }
+            if (light.reference) push('Light ref.', light.reference);
+        }
+
+        ['fog_signal', 'radio_station', 'topmark'].forEach(k => {
+            if (kids[k]) {
+                const v = Object.entries(kids[k]).map(([f, val]) => `${f}: ${val}`).join(', ');
+                push(typeLabel(k), v);
+            }
+        });
+
+        const common = props.common || {};
+        Object.entries(common).forEach(([k, v]) => {
+            if (k === 'type' || k === 'name') return;
+            push(typeLabel(k), String(v).replace(/_/g, ' '));
+        });
+
+        if (lat !== undefined && lon !== undefined) {
+            push('Position', `${formatDMS(lat, 'NS')} — ${formatDMS(lon, 'EW')}`);
+        }
+
+        html += rows.join('') + '</div>';
+        return html;
+    }
+
+    function lightSectorRow(l: any): string {
+        const char = l.character ? (LIGHT_CHARACTERS[l.character] || l.character) : null;
+        const parts = [];
+        if (l.colour) parts.push(`<span style="color:${firstColor(l.colour)};font-weight:bold">${l.colour}</span>`);
+        if (char) parts.push(char + (l.group ? ` (${l.group})` : ''));
+        if (l.period) parts.push(`period ${l.period}s`);
+        if (l.range) parts.push(`range ${l.range} NM`);
+        if (l.height) parts.push(`ht ${l.height} m`);
+        if (l.sector_start !== undefined && l.sector_end !== undefined) {
+            parts.push(`sector ${l.sector_start}°–${l.sector_end}°`);
+        }
+        return `<div class="nt-pop-row">💡 ${parts.join(' · ')}</div>`;
+    }
+
+    // ── ECDIS-style point icons (simplified IALA symbology) ─────
+    function buildSeamarkIcon(props: any): { html: string, size: number } | null {
+        const typ   = props.seamark_type || '';
+        const attrs = props.attributes || {};
+        const kids  = props.children || {};
+        const size  = 24;
+
+        const svg = (inner: string, vb = 40) =>
+            `<svg viewBox="0 0 ${vb} ${vb}" width="${size}" height="${size}" style="overflow:visible">${inner}</svg>`;
         const pole = `<line x1="20" y1="40" x2="20" y2="10" stroke="#555" stroke-width="2"/>`;
 
         if (typ.startsWith('buoy_lateral') || typ.startsWith('beacon_lateral')) {
@@ -1386,123 +1569,243 @@
         }
 
         if (typ.startsWith('light_major') || typ.startsWith('light_minor')) {
-            const col = firstColor(kids.light?.colour) === '#888888' ? '#f1c40f' : firstColor(kids.light?.colour);
-            const rays = [0,45,90,135,180,225,270,315].map(a =>
-                `<line x1="20" y1="20" x2="${20+14*Math.cos(a*Math.PI/180)}" y2="${20+14*Math.sin(a*Math.PI/180)}" stroke="${col}" stroke-width="1.5"/>`
-            ).join('');
-            return { html: svg(rays + `<circle cx="20" cy="20" r="6" fill="${col}" stroke="#000" stroke-width="1"/>`), size: 22 };
+            return buildLightIcon(kids.light);
+        }
+
+        if (typ === 'rock') {
+            const wl = (attrs.water_level || '').toLowerCase();
+            const col = wl === 'always_dry' ? '#161616' : '#7b3f00';
+            return { html: svg(`<text x="20" y="26" font-size="22" text-anchor="middle" fill="${col}">✳</text>`), size: 16 };
         }
 
         if (typ.includes('wreck')) {
-            return { html: svg(`<line x1="10" y1="10" x2="30" y2="30" stroke="#7b1f1f" stroke-width="3"/>
-                                 <line x1="30" y1="10" x2="10" y2="30" stroke="#7b1f1f" stroke-width="3"/>
-                                 <circle cx="20" cy="20" r="15" fill="none" stroke="#7b1f1f" stroke-width="1.5" stroke-dasharray="3,2"/>`), size: 20 };
+            const col = (attrs.category || '').includes('dangerous') ? '#e0302a' : '#7b1f1f';
+            return { html: svg(`<line x1="10" y1="10" x2="30" y2="30" stroke="${col}" stroke-width="3"/>
+                                 <line x1="30" y1="10" x2="10" y2="30" stroke="${col}" stroke-width="3"/>
+                                 <circle cx="20" cy="20" r="15" fill="none" stroke="${col}" stroke-width="1.5" stroke-dasharray="3,2"/>`), size: 18 };
         }
 
         if (typ.includes('obstruction')) {
-            return { html: svg(`<circle cx="20" cy="20" r="13" fill="none" stroke="#e67e22" stroke-width="2" stroke-dasharray="4,3"/>`), size: 18 };
+            return { html: svg(`<circle cx="20" cy="20" r="13" fill="none" stroke="#e67e22" stroke-width="2" stroke-dasharray="4,3"/>`), size: 16 };
         }
 
-        if (typ.includes('anchorage') || typ.includes('anchor_berth')) {
+        if (typ === 'anchorage' || typ === 'anchor_berth' || typ === 'small_craft_facility') {
             return { html: svg(`<circle cx="20" cy="20" r="14" fill="none" stroke="#2d7dd2" stroke-width="2"/>
                                  <circle cx="20" cy="12" r="2.5" fill="#2d7dd2"/>
                                  <line x1="20" y1="14" x2="20" y2="28" stroke="#2d7dd2" stroke-width="2"/>
-                                 <path d="M10 24 Q20 34 30 24" fill="none" stroke="#2d7dd2" stroke-width="2"/>`), size: 20 };
+                                 <path d="M10 24 Q20 34 30 24" fill="none" stroke="#2d7dd2" stroke-width="2"/>`), size: 18 };
         }
 
-        if (typ.includes('marine_farm')) {
+        if (typ === 'marine_farm') {
             return { html: svg(`<rect x="8" y="8" width="24" height="24" fill="none" stroke="#1fa34a" stroke-width="2"/>
                                  <line x1="8" y1="16" x2="32" y2="16" stroke="#1fa34a" stroke-width="1"/>
-                                 <line x1="8" y1="24" x2="32" y2="24" stroke="#1fa34a" stroke-width="1"/>`), size: 18 };
+                                 <line x1="8" y1="24" x2="32" y2="24" stroke="#1fa34a" stroke-width="1"/>`), size: 16 };
         }
 
-        if (typ.includes('offshore_platform')) {
+        if (typ === 'offshore_platform') {
             return { html: svg(`<rect x="10" y="10" width="20" height="20" fill="#95a5a6" stroke="#000" stroke-width="1"/>
-                                 <circle cx="20" cy="20" r="3" fill="#e67e22"/>`), size: 18 };
+                                 <circle cx="20" cy="20" r="3" fill="#e67e22"/>`), size: 16 };
         }
 
         if (typ.includes('cable_submarine') || typ.includes('pipeline_submarine')) {
-            return { html: svg(`<circle cx="20" cy="20" r="4" fill="#555"/>`), size: 12 };
+            return { html: svg(`<circle cx="20" cy="20" r="4" fill="#555"/>`), size: 10 };
         }
 
-        if (typ.includes('harbour')) {
+        if (typ === 'harbour') {
             return { html: svg(`<circle cx="20" cy="20" r="14" fill="#2d7dd2" opacity="0.85"/>
-                                 <path d="M20 10 L20 26 M14 20 Q20 28 26 20" fill="none" stroke="#fff" stroke-width="2"/>`), size: 20 };
+                                 <path d="M20 10 L20 26 M14 20 Q20 28 26 20" fill="none" stroke="#fff" stroke-width="2"/>`), size: 18 };
         }
 
-        if (typ.includes('landmark')) {
-            return { html: svg(`<polygon points="20,8 30,32 10,32" fill="none" stroke="#161616" stroke-width="2"/>`), size: 18 };
+        if (typ === 'landmark') {
+            return { html: svg(`<polygon points="20,8 30,32 10,32" fill="none" stroke="#161616" stroke-width="2"/>`), size: 16 };
         }
 
-        // fallback générique
-        return { html: svg(`<circle cx="20" cy="20" r="6" fill="#95a5a6" stroke="#000" stroke-width="1"/>`), size: 14 };
+        if (typ === 'berth') {
+            return { html: svg(`<rect x="10" y="10" width="20" height="20" fill="none" stroke="#2d7dd2" stroke-width="2"/>`), size: 12 };
+        }
+
+        if (typ === 'mooring') {
+            return { html: svg(`<circle cx="20" cy="20" r="8" fill="none" stroke="#161616" stroke-width="2"/>`), size: 12 };
+        }
+
+        if (typ === 'crane') {
+            return { html: svg(`<line x1="14" y1="34" x2="14" y2="8" stroke="#555" stroke-width="2"/>
+                                 <line x1="14" y1="8" x2="30" y2="16" stroke="#555" stroke-width="2"/>
+                                 <line x1="30" y1="16" x2="30" y2="22" stroke="#555" stroke-width="1.5"/>`), size: 16 };
+        }
+
+        if (typ === 'rescue_station' || typ === 'coastguard_station') {
+            return { html: svg(`<circle cx="20" cy="20" r="12" fill="#e0302a"/><circle cx="20" cy="20" r="6" fill="#fff"/>
+                                 <line x1="20" y1="8" x2="20" y2="14" stroke="#fff" stroke-width="2"/>
+                                 <line x1="20" y1="26" x2="20" y2="32" stroke="#fff" stroke-width="2"/>`), size: 16 };
+        }
+
+        if (typ === 'daymark') {
+            return { html: svg(`<polygon points="20,8 30,20 20,32 10,20" fill="none" stroke="#161616" stroke-width="2"/>`), size: 14 };
+        }
+
+        if (typ === 'virtual_aton') {
+            return { html: svg(`<polygon points="20,6 30,20 20,34 10,20" fill="none" stroke="#c2185b" stroke-width="2" stroke-dasharray="3,2"/>`), size: 16 };
+        }
+
+        if (typ === 'building' || typ === 'tank' || typ === 'pontoon') {
+            return { html: svg(`<rect x="11" y="14" width="18" height="16" fill="#95a5a6" stroke="#000" stroke-width="1"/>`), size: 12 };
+        }
+
+        if (typ === 'pile') {
+            return { html: svg(`<circle cx="20" cy="20" r="3" fill="#161616"/>`), size: 8 };
+        }
+
+        if (typ === 'gate') {
+            return { html: svg(`<line x1="10" y1="20" x2="16" y2="20" stroke="#555" stroke-width="3"/>
+                                 <line x1="24" y1="20" x2="30" y2="20" stroke="#555" stroke-width="3"/>`), size: 12 };
+        }
+
+        // generic fallback (covers any unhandled point type)
+        return { html: svg(`<circle cx="20" cy="20" r="6" fill="#95a5a6" stroke="#000" stroke-width="1"/>`), size: 12 };
     }
 
-    async function handleSeamarkFile(e: Event) {
-        const file = (e.target as HTMLInputElement).files?.[0];
-        if (!file) return;
-        seamarkError = '';
-        try {
-            const text = await file.text();
-            const geo = JSON.parse(text);
-            seamarkFeatures = (geo.features || []).filter(f => f?.geometry?.type === 'Point');
-            seamarkCount = seamarkFeatures.length;
-            if (seamarkCount === 0) {
-                seamarkError = 'Aucune balise trouvée dans ce fichier.';
-                return;
+    // Light sectors drawn like an OpenCPN/ECDIS light-sector rosette:
+    // colour wedges for each sector, a solid dot for all-round lights.
+    function buildLightIcon(light: any): { html: string, size: number } {
+        const size = 64;
+        const cx = 32, cy = 32, r = 24;
+
+        const toXY = (deg: number, radius: number) => {
+            const rad = deg * Math.PI / 180;
+            return [cx + radius * Math.sin(rad), cy - radius * Math.cos(rad)];
+        };
+
+        let sectors: any[] = [];
+        if (light) {
+            const numbered = Object.keys(light).filter(k => /^\d+:/.test(k));
+            if (numbered.length > 0) {
+                const groups: Record<string, any> = {};
+                numbered.forEach(k => {
+                    const [n, field] = k.split(':');
+                    groups[n] = groups[n] || {};
+                    groups[n][field] = light[k];
+                });
+                sectors = Object.values(groups);
+            } else {
+                sectors = [light];
             }
-            if (!seamarkLayer) seamarkLayer = L.layerGroup().addTo(map);
-            renderSeamarks();
-        } catch (err) {
-            seamarkError = 'Fichier invalide (GeoJSON attendu — sortie du script Python).';
-            console.error(err);
         }
+
+        let wedges = '';
+        sectors.forEach(s => {
+            const col = firstColor(s.colour) === '#888888' ? '#f1c40f' : firstColor(s.colour);
+            if (s.sector_start !== undefined && s.sector_end !== undefined) {
+                const start = parseFloat(s.sector_start), end = parseFloat(s.sector_end);
+                const sweep = ((end - start + 360) % 360) || 360;
+                const largeArc = sweep > 180 ? 1 : 0;
+                const [x1, y1] = toXY(start, r);
+                const [x2, y2] = toXY(end, r);
+                wedges += `<path d="M ${cx} ${cy} L ${x1.toFixed(1)} ${y1.toFixed(1)} A ${r} ${r} 0 ${largeArc} 1 ${x2.toFixed(1)} ${y2.toFixed(1)} Z" fill="${col}" opacity="0.55" stroke="${col}" stroke-width="1"/>`;
+            } else {
+                wedges += `<circle cx="${cx}" cy="${cy}" r="9" fill="${col}" opacity="0.85" stroke="#000" stroke-width="1"/>`;
+            }
+        });
+
+        const html = `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" style="overflow:visible">
+            ${wedges}
+            <circle cx="${cx}" cy="${cy}" r="4.5" fill="#fff" stroke="#000" stroke-width="1.5"/>
+        </svg>`;
+
+        return { html, size };
+    }
+
+    // ── area / line style (zones, lanes, tracks, cables…) ───────
+    function styleForAreaType(typ: string): { color: string, fill?: string, weight: number, dash?: string, opacity: number } {
+        const styles: Record<string, any> = {
+            separation_zone:      { color: '#e67e22', fill: '#e67e22', weight: 1, opacity: 0.85 },
+            separation_boundary:  { color: '#e67e22', weight: 2, dash: '6,4', opacity: 0.9 },
+            separation_lane:      { color: '#e67e22', weight: 1, dash: '2,4', opacity: 0.6 },
+            restricted_area:      { color: '#8e44ad', fill: '#8e44ad', weight: 2, dash: '4,3', opacity: 0.8 },
+            recommended_track:    { color: '#1fa34a', weight: 2, dash: '8,4', opacity: 0.9 },
+            navigation_line:      { color: '#333333', weight: 1, dash: '5,4', opacity: 0.8 },
+            cable_submarine:      { color: '#555555', weight: 1, dash: '2,4', opacity: 0.7 },
+            pipeline_submarine:   { color: '#8e44ad', weight: 1, dash: '2,4', opacity: 0.7 },
+            fairway:              { color: '#2d7dd2', fill: '#2d7dd2', weight: 1, opacity: 0.4 },
+            seabed_area:          { color: '#a97142', fill: '#a97142', weight: 1, opacity: 0.35 },
+            shoreline_construction:{ color: '#a97142', weight: 2, opacity: 0.8 },
+            marine_farm:          { color: '#1fa34a', fill: '#1fa34a', weight: 1, opacity: 0.4 },
+            anchorage:            { color: '#2d7dd2', fill: '#2d7dd2', weight: 1, dash: '4,3', opacity: 0.4 },
+        };
+        return styles[typ] || { color: '#95a5a6', weight: 1, dash: '3,3', opacity: 0.6 };
+    }
+
+    function seamarkTooltipText(props: any): string {
+        return props.name || typeLabel(props.seamark_type);
     }
 
     function renderSeamarks() {
         if (!seamarkLayer) return;
         seamarkLayer.clearLayers();
-        if (!seamarksVisible || seamarkFeatures.length === 0) return;
 
-        const zoom = typeof map.getZoom === 'function' ? map.getZoom() : 10;
+        seamarkFeatureCount = 0;
+        if (!seamarksVisible || currentZoom < TILE_MIN_ZOOM) return;
 
-        seamarkFeatures.forEach(f => {
-            const props = f.properties || {};
-            const minZoom = props.min_zoom ?? 10;
-            if (zoom < minZoom) return;
+        const zoom = currentZoom;
+        const seen = new Set<number>();
 
-            const [lon, lat] = f.geometry.coordinates;
-            const { html, size } = buildSeamarkIcon(props);
+        Object.values(tileCache).forEach((features: any[]) => {
+            features.forEach(f => {
+                const props = f.properties || {};
+                if (seen.has(props.osm_id)) return; // dedupe across overlapping tiles
+                seen.add(props.osm_id);
 
-            const icon = L.divIcon({
-                className: '',
-                html,
-                iconSize: [size, size],
-                iconAnchor: [size / 2, size / 2]
+                const minZoom = props.min_zoom ?? 10;
+                if (zoom < minZoom) return;
+
+                const geom = f.geometry;
+                if (!geom) return;
+
+                if (geom.type === 'Point') {
+                    const [lon, lat] = geom.coordinates;
+                    const icon = buildSeamarkIcon(props);
+                    if (!icon) return;
+                    L.marker([lat, lon], {
+                        icon: L.divIcon({ className: '', html: icon.html, iconSize: [icon.size, icon.size], iconAnchor: [icon.size / 2, icon.size / 2] })
+                    }).addTo(seamarkLayer)
+                      .bindTooltip(seamarkTooltipText(props), { direction: 'top' })
+                      .bindPopup(buildPopupHtml(props, lat, lon));
+                    seamarkFeatureCount++;
+                } else if (geom.type === 'LineString') {
+                    const latlngs = geom.coordinates.map(([lo, la]) => [la, lo]);
+                    const style = styleForAreaType(props.seamark_type);
+                    L.polyline(latlngs, {
+                        color: style.color, weight: style.weight, opacity: style.opacity,
+                        dashArray: style.dash
+                    }).addTo(seamarkLayer).bindPopup(buildPopupHtml(props));
+                    seamarkFeatureCount++;
+                } else if (geom.type === 'Polygon') {
+                    const latlngs = geom.coordinates[0].map(([lo, la]) => [la, lo]);
+                    const style = styleForAreaType(props.seamark_type);
+                    L.polygon(latlngs, {
+                        color: style.color, fillColor: style.fill || style.color,
+                        fillOpacity: style.fill ? style.opacity * 0.4 : 0,
+                        weight: style.weight, opacity: style.opacity, dashArray: style.dash
+                    }).addTo(seamarkLayer).bindPopup(buildPopupHtml(props));
+                    seamarkFeatureCount++;
+                }
             });
-
-            L.marker([lat, lon], { icon })
-                .addTo(seamarkLayer)
-                .bindTooltip(seamarkLabel(props), { direction: 'top' });
         });
     }
 
-    function clearSeamarks() {
-        seamarkLayer?.clearLayers();
-        seamarkFeatures = [];
-        seamarkCount = 0;
-        seamarkError = '';
-    }
-
-    // ─── OUTILS DE MESURE (distance / relèvement) ──────────────
+    // ─── MEASURING TOOLS (distance / true bearing) ──────────────
     let showmeasurePanel = false;
     let measureActive    = false;
     let measureLayer     = null;
     let measureStart: { lat: number, lon: number, marker: any } | null = null;
-    let measurements: { id: number, distNM: number, brg: number, layers: any[] }[] = [];
+    let measurements: {
+        id: number, distNM: number, brg: number,
+        startLat: number, startLon: number, endLat: number, endLon: number,
+        locked: 'start' | 'end', editing: boolean, layers: any[]
+    }[] = [];
 
     function haversineNM(lat1: number, lon1: number, lat2: number, lon2: number): number {
-        const R = 3440.065; // rayon terrestre en NM
+        const R = 3440.065;
         const toRad = (d: number) => d * Math.PI / 180;
         const dLat = toRad(lat2 - lat1);
         const dLon = toRad(lon2 - lon1);
@@ -1520,6 +1823,53 @@
         return (toDeg(Math.atan2(y, x)) + 360) % 360;
     }
 
+    function destinationPoint(lat1: number, lon1: number, distNM: number, bearingDeg: number): { lat: number, lon: number } {
+        const R = 3440.065;
+        const toRad = (d: number) => d * Math.PI / 180;
+        const toDeg = (r: number) => r * 180 / Math.PI;
+        const delta = distNM / R;
+        const theta = toRad(bearingDeg);
+        const phi1 = toRad(lat1), lambda1 = toRad(lon1);
+
+        const phi2 = Math.asin(Math.sin(phi1) * Math.cos(delta) + Math.cos(phi1) * Math.sin(delta) * Math.cos(theta));
+        const lambda2 = lambda1 + Math.atan2(
+            Math.sin(theta) * Math.sin(delta) * Math.cos(phi1),
+            Math.cos(delta) - Math.sin(phi1) * Math.sin(phi2)
+        );
+
+        return { lat: toDeg(phi2), lon: ((toDeg(lambda2) + 540) % 360) - 180 };
+    }
+
+    function drawMeasurement(m: any) {
+        m.layers.forEach((l: any) => l.remove());
+        m.layers = [];
+
+        const startMarker = L.circleMarker([m.startLat, m.startLon], {
+            radius: 5, color: '#f1c40f', fillColor: '#f1c40f', fillOpacity: 1, weight: 2
+        }).addTo(measureLayer).bindTooltip('A', { permanent: false });
+
+        const endMarker = L.circleMarker([m.endLat, m.endLon], {
+            radius: 5, color: '#f1c40f', fillColor: '#f1c40f', fillOpacity: 1, weight: 2
+        }).addTo(measureLayer).bindTooltip('B', { permanent: false });
+
+        const line = L.polyline(
+            [[m.startLat, m.startLon], [m.endLat, m.endLon]],
+            { color: '#f1c40f', weight: 2, dashArray: '6,4' }
+        ).addTo(measureLayer);
+
+        const midLat = (m.startLat + m.endLat) / 2;
+        const midLon = (m.startLon + m.endLon) / 2;
+        const label = L.marker([midLat, midLon], {
+            icon: L.divIcon({
+                className: '',
+                html: `<div class="nt-measure-label">${m.distNM.toFixed(2)} NM / ${m.brg.toFixed(0)}°</div>`,
+                iconSize: [0, 0]
+            })
+        }).addTo(measureLayer);
+
+        m.layers = [startMarker, endMarker, line, label];
+    }
+
     function onMapDblClick(e: any) {
         const { lat, lng } = e.latlng;
 
@@ -1531,35 +1881,42 @@
             return;
         }
 
+        measureStart.marker.remove();
+
         const distNM = haversineNM(measureStart.lat, measureStart.lon, lat, lng);
         const brg    = initialBearing(measureStart.lat, measureStart.lon, lat, lng);
 
-        const line = L.polyline(
-            [[measureStart.lat, measureStart.lon], [lat, lng]],
-            { color: '#f1c40f', weight: 2, dashArray: '6,4' }
-        ).addTo(measureLayer);
-
-        const midLat = (measureStart.lat + lat) / 2;
-        const midLon = (measureStart.lon + lng) / 2;
-        const label = L.marker([midLat, midLon], {
-            icon: L.divIcon({
-                className: '',
-                html: `<div class="kbt-measure-label">${distNM.toFixed(2)} MN / ${brg.toFixed(0)}°</div>`,
-                iconSize: [0, 0]
-            })
-        }).addTo(measureLayer);
-
-        const endMarker = L.circleMarker([lat, lng], {
-            radius: 5, color: '#f1c40f', fillColor: '#f1c40f', fillOpacity: 1, weight: 2
-        }).addTo(measureLayer);
-
-        measurements = [...measurements, {
+        const m = {
             id: Date.now() + Math.random(),
             distNM, brg,
-            layers: [measureStart.marker, line, label, endMarker]
-        }];
+            startLat: measureStart.lat, startLon: measureStart.lon,
+            endLat: lat, endLon: lng,
+            locked: 'start' as const, editing: false, layers: []
+        };
+        drawMeasurement(m);
 
+        measurements = [...measurements, m];
         measureStart = null;
+    }
+
+    function onMeasureLatLonEdit(m: any) {
+        m.distNM = haversineNM(m.startLat, m.startLon, m.endLat, m.endLon);
+        m.brg    = initialBearing(m.startLat, m.startLon, m.endLat, m.endLon);
+        drawMeasurement(m);
+        measurements = [...measurements];
+    }
+
+    function onMeasureDistBrgEdit(m: any) {
+        if (m.locked === 'start') {
+            const dest = destinationPoint(m.startLat, m.startLon, m.distNM, m.brg);
+            m.endLat = dest.lat; m.endLon = dest.lon;
+        } else {
+            const backBrg = (m.brg + 180) % 360;
+            const dest = destinationPoint(m.endLat, m.endLon, m.distNM, backBrg);
+            m.startLat = dest.lat; m.startLon = dest.lon;
+        }
+        drawMeasurement(m);
+        measurements = [...measurements];
     }
 
     function toggleMeasure() {
@@ -1578,12 +1935,12 @@
 
     function removeMeasurement(id: number) {
         const m = measurements.find(x => x.id === id);
-        if (m) m.layers.forEach(l => l.remove());
+        if (m) m.layers.forEach((l: any) => l.remove());
         measurements = measurements.filter(x => x.id !== id);
     }
 
     function clearAllMeasurements() {
-        measurements.forEach(m => m.layers.forEach(l => l.remove()));
+        measurements.forEach(m => m.layers.forEach((l: any) => l.remove()));
         measurements = [];
         if (measureStart) {
             measureStart.marker.remove();
@@ -1591,10 +1948,12 @@
         }
     }
 
-    // ─── WEATHERSCORE (placeholder) ────────────────────────────
+    // ─── WEATHERSCORE (placeholder) ─────────────────────────────
     let showWSPanel = false;
 
-    // ─── INIT / DESTRUCTION ─────────────────────────────────────
+    // ─── INIT / DESTROY ──────────────────────────────────────────
+    let onViewChange: () => void;
+
     onMount(() => {
         unsubTime = store.on('timestamp', (ts: number) => {
             updateTimeDisplay(ts);
@@ -1604,9 +1963,13 @@
         seamarkLayer = L.layerGroup().addTo(map);
         measureLayer = L.layerGroup().addTo(map);
 
+        onViewChange = () => { loadVisibleTiles(); };
+
         if (typeof map.on === 'function') {
-            map.on('zoomend', renderSeamarks);
+            map.on('zoomend', onViewChange);
+            map.on('moveend', onViewChange);
         }
+        onViewChange();
     });
 
     onDestroy(() => {
@@ -1615,12 +1978,13 @@
         boatLayers.forEach(l => l.remove());
         barbLayers.forEach(l => l.remove());
         pointLayers.forEach(l => l.remove());
-        dstLayer?.remove();
+        tssLayer?.remove();
         seamarkLayer?.remove();
         measureLayer?.remove();
 
         if (typeof map.off === 'function') {
-            map.off('zoomend', renderSeamarks);
+            map.off('zoomend', onViewChange);
+            map.off('moveend', onViewChange);
             map.off('dblclick', onMapDblClick);
         }
         if (measureActive && map.doubleClickZoom) map.doubleClickZoom.enable();
@@ -1630,43 +1994,50 @@
 </script>
 
 <style lang="less">
-    .kbt-panel {
+    .nt-panel {
+        --nt-bg: #3c3c3c;
+        --nt-bg-dark: #2e2e2e;
+        --nt-bg-light: #4a4a4a;
+        --nt-bg-lighter: #585858;
+        --nt-border: #565656;
+        --nt-accent: #3498db;
+
         position: fixed;
         bottom: 120px;
         left: 20px;
         width: 300px;
-        background: rgba(15, 15, 25, 0.95);
+        background: rgba(60, 60, 60, 0.97);
         color: white;
         border-radius: 12px;
         padding: 15px;
-        border: 1px solid #334;
+        border: 1px solid var(--nt-border);
         box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
         overflow-y: auto;
         scrollbar-width: thin;
-        scrollbar-color: #445 transparent;
+        scrollbar-color: var(--nt-bg-lighter) transparent;
         transition: all 0.3s ease;
         max-height: 80vh;
     }
 
-    .kbt-header {
+    .nt-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
         font-weight: bold;
-        border-bottom: 1px solid #334;
+        border-bottom: 1px solid var(--nt-border);
         padding-bottom: 8px;
         margin-bottom: 12px;
     }
-    .kbt-header__icon { font-size: 18px; }
-    .kbt-header__title { flex: 1; margin-left: 8px; }
+    .nt-header__icon { font-size: 18px; }
+    .nt-header__title { flex: 1; margin-left: 8px; }
 
-    .kbt-header-actions {
+    .nt-header-actions {
         display: flex;
         gap: 8px;
         align-items: center;
     }
 
-    .kbt-btn-minimize {
+    .nt-btn-minimize {
         background: rgba(52, 152, 219, 0.2);
         border: 1px solid #3498db;
         color: #3498db;
@@ -1681,7 +2052,7 @@
         }
     }
 
-    .kbt-header__close {
+    .nt-header__close {
         background: none;
         border: none;
         color: #e74c3c;
@@ -1692,8 +2063,8 @@
         &:hover { transform: scale(1.1); }
     }
 
-    .kbt-drop {
-        border: 2px dashed #445;
+    .nt-drop {
+        border: 2px dashed var(--nt-bg-lighter);
         border-radius: 8px;
         padding: 20px;
         text-align: center;
@@ -1702,99 +2073,95 @@
         transition: all 0.2s;
         &:hover, &--active {
             border-color: #3498db;
-            background: #1a1f2e;
+            background: var(--nt-bg-light);
         }
     }
-    .kbt-drop--compact {
-        padding: 12px;
-        margin-bottom: 0;
-    }
-    .kbt-hint {
+    .nt-hint {
         display: block;
         font-size: 10px;
-        color: #778;
+        color: #bbb;
         margin-top: 4px;
     }
+    .nt-loading { color: #3498db; }
 
-    /* ---- Bloc info / horloge ---- */
-    .kbt-info {
-        background: rgba(0, 0, 0, 0.3);
+    .nt-info {
+        background: var(--nt-bg-dark);
         padding: 10px;
         border-radius: 6px;
         margin-bottom: 15px;
     }
 
-    .kbt-time-row {
+    .nt-time-row {
         display: flex;
         justify-content: space-between;
         align-items: center;
         padding: 3px 0;
-        border-bottom: 1px solid rgba(255,255,255,0.05);
+        border-bottom: 1px solid rgba(255,255,255,0.06);
         &:last-of-type { border-bottom: none; }
     }
 
-    .kbt-tz-label {
+    .nt-tz-label {
         font-size: 10px;
-        color: #889;
+        color: #bbb;
     }
 
-    .kbt-tz-val {
+    .nt-tz-val {
         font-family: monospace;
         font-size: 11px;
         font-weight: bold;
     }
 
-    .kbt-tz-utc   { color: #3498db; }
-    .kbt-tz-local { color: #2ecc71; }
-    .kbt-tz-csv   { color: #e67e22; }
+    .nt-tz-utc   { color: #3498db; }
+    .nt-tz-local { color: #2ecc71; }
+    .nt-tz-csv   { color: #e67e22; }
 
-    .kbt-tz-detected {
+    .nt-tz-detected {
         font-size: 10px;
         color: #2ecc71;
         margin-top: 6px;
         padding: 4px 6px;
-        background: rgba(46, 204, 113, 0.1);
+        background: rgba(46, 204, 113, 0.12);
         border-radius: 4px;
     }
 
-    .kbt-tz-warn {
+    .nt-tz-warn {
         font-size: 10px;
         color: #f39c12;
         margin-top: 6px;
         padding: 4px 6px;
-        background: rgba(243, 156, 18, 0.1);
+        background: rgba(243, 156, 18, 0.12);
         border-radius: 4px;
     }
 
-    .kbt-tz-controls {
+    .nt-tz-controls {
         display: flex;
         gap: 8px;
         flex-wrap: wrap;
         margin-top: 8px;
         padding-top: 8px;
-        border-top: 1px solid #334;
+        border-top: 1px solid var(--nt-border);
     }
 
-    .kbt-tz-ctrl-label {
+    .nt-tz-ctrl-label {
         font-size: 10px;
-        color: #889;
+        color: #bbb;
         display: flex;
         flex-direction: column;
         gap: 3px;
         flex: 1;
     }
 
-    .kbt-offset-row {
+    .nt-offset-row {
         display: flex;
         align-items: center;
         gap: 4px;
         font-size: 11px;
-        color: #aaa;
+        color: #ddd;
     }
 
-    .kbt-offset-input {
-        background: rgba(0, 0, 0, 0.5);
-        border: 1px solid #445;
+    .nt-offset-input {
+        background: var(--nt-bg-dark);
+        border: 1px solid var(--nt-border);
         color: white;
         padding: 3px 6px;
         border-radius: 4px;
@@ -1804,22 +2171,21 @@
         &:focus { outline: none; border-color: #3498db; }
     }
 
-    .kbt-status {
+    .nt-status {
         font-size: 12px;
         color: #2ecc71;
         margin-top: 8px;
     }
 
-    /* ---- Routes ---- */
-    .kbt-route-card {
-        background: rgba(0, 0, 0, 0.4);
+    .nt-route-card {
+        background: var(--nt-bg-light);
         border-radius: 8px;
         padding: 12px;
         margin-bottom: 10px;
-        border: 1px solid #334;
+        border: 1px solid var(--nt-border);
     }
 
-    .kbt-route-header {
+    .nt-route-header {
         display: flex;
         align-items: center;
         gap: 8px;
@@ -1832,7 +2198,7 @@
         }
     }
 
-    .kbt-route-name {
+    .nt-route-name {
         flex: 1;
         font-weight: bold;
         font-size: 13px;
@@ -1841,7 +2207,7 @@
         white-space: nowrap;
     }
 
-    .kbt-btn-remove {
+    .nt-btn-remove {
         background: rgba(231, 76, 60, 0.2);
         border: 1px solid #e74c3c;
         color: #e74c3c;
@@ -1852,19 +2218,29 @@
         &:hover { background: rgba(231, 76, 60, 0.4); }
     }
 
-    /* ---- Sélecteur de couleur ---- */
-    .kbt-color-picker {
+    .nt-btn-edit {
+        background: rgba(52, 152, 219, 0.2);
+        border: 1px solid #3498db;
+        color: #3498db;
+        padding: 4px 8px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+        &:hover { background: rgba(52, 152, 219, 0.4); }
+    }
+
+    .nt-color-picker {
         display: flex;
         flex-wrap: wrap;
         gap: 5px;
         margin-bottom: 8px;
         padding: 6px;
-        background: rgba(0, 0, 0, 0.25);
+        background: var(--nt-bg-dark);
         border-radius: 6px;
-        border: 1px solid #334;
+        border: 1px solid var(--nt-border);
     }
 
-    .kbt-color-swatch {
+    .nt-color-swatch {
         width: 18px;
         height: 18px;
         border-radius: 50%;
@@ -1885,21 +2261,21 @@
         }
     }
 
-    .kbt-route-info {
+    .nt-route-info {
         display: flex;
         justify-content: space-between;
         align-items: center;
         margin-bottom: 8px;
     }
 
-    .kbt-meta {
+    .nt-meta {
         font-size: 11px;
-        color: #999;
+        color: #ccc;
     }
 
-    .kbt-select-format {
-        background: rgba(0, 0, 0, 0.5);
-        border: 1px solid #445;
+    .nt-select-format {
+        background: var(--nt-bg-dark);
+        border: 1px solid var(--nt-border);
         color: white;
         padding: 4px 8px;
         border-radius: 4px;
@@ -1909,17 +2285,17 @@
         &:disabled { opacity: 0.5; cursor: not-allowed; }
     }
 
-    .kbt-barbs-options {
+    .nt-barbs-options {
         display: flex;
         flex-direction: column;
         gap: 6px;
         margin-bottom: 8px;
         padding: 8px;
-        background: rgba(0, 0, 0, 0.3);
+        background: var(--nt-bg-dark);
         border-radius: 6px;
     }
 
-    .kbt-checkbox {
+    .nt-checkbox {
         display: flex;
         align-items: center;
         gap: 6px;
@@ -1935,7 +2311,15 @@
         &:hover { color: #3498db; }
     }
 
-    .kbt-btn-fit {
+    .nt-radio {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 11px;
+        cursor: pointer;
+    }
+
+    .nt-btn-fit {
         width: 100%;
         background: #3498db;
         border: none;
@@ -1947,54 +2331,52 @@
         &:hover { background: #2980b9; }
     }
 
-    .kbt-error {
+    .nt-error {
         color: #e74c3c;
         font-size: 11px;
-        background: rgba(231, 76, 60, 0.1);
+        background: rgba(231, 76, 60, 0.12);
         padding: 8px;
         border-radius: 6px;
         margin-top: 10px;
     }
 
-    /* ── Sections repliables ── */
-    .kbt-section {
-        border: 1px solid #334;
+    .nt-section {
+        border: 1px solid var(--nt-border);
         border-radius: 8px;
         margin-bottom: 10px;
         overflow: hidden;
     }
-    .kbt-section-header {
+    .nt-section-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
         padding: 8px 12px;
-        background: rgba(52,152,219,0.12);
+        background: rgba(52,152,219,0.14);
         cursor: pointer;
         font-size: 12px;
         font-weight: bold;
         user-select: none;
-        &:hover { background: rgba(52,152,219,0.22); }
+        &:hover { background: rgba(52,152,219,0.24); }
     }
 
-    /* ── Formulaire point manuel ── */
-    .kbt-point-form {
+    .nt-point-form {
         padding: 8px 10px;
     }
-    .kbt-point-row {
+    .nt-point-row {
         display: flex;
         align-items: center;
         gap: 4px;
         margin-bottom: 6px;
     }
-    .kbt-point-label {
+    .nt-point-label {
         font-size: 10px;
-        color: #889;
+        color: #bbb;
         width: 22px;
         flex-shrink: 0;
     }
-    .kbt-point-input {
-        background: rgba(0,0,0,0.5);
-        border: 1px solid #445;
+    .nt-point-input {
+        background: var(--nt-bg-dark);
+        border: 1px solid var(--nt-border);
         color: white;
         padding: 3px 5px;
         border-radius: 4px;
@@ -2006,23 +2388,23 @@
         &::-webkit-outer-spin-button,
         &::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
     }
-    .kbt-point-sep {
+    .nt-point-sep {
         font-size: 13px;
-        color: #aaa;
+        color: #ccc;
     }
-    .kbt-point-ns {
-        background: rgba(0,0,0,0.5);
-        border: 1px solid #445;
+    .nt-point-ns {
+        background: var(--nt-bg-dark);
+        border: 1px solid var(--nt-border);
         color: white;
         padding: 3px 4px;
         border-radius: 4px;
         font-size: 11px;
         cursor: pointer;
     }
-    .kbt-point-name-input {
+    .nt-point-name-input {
         width: 100%;
-        background: rgba(0,0,0,0.5);
-        border: 1px solid #445;
+        background: var(--nt-bg-dark);
+        border: 1px solid var(--nt-border);
         color: white;
         padding: 4px 8px;
         border-radius: 4px;
@@ -2032,25 +2414,63 @@
         &:focus { outline: none; border-color: #3498db; }
     }
 
-    /* ── Outils de mesure ── */
-    .kbt-measure-list {
+    .nt-measure-list {
         margin-top: 8px;
         display: flex;
         flex-direction: column;
-        gap: 4px;
+        gap: 6px;
     }
-    .kbt-measure-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        background: rgba(0,0,0,0.3);
-        padding: 5px 8px;
+    .nt-measure-item {
+        background: var(--nt-bg-dark);
         border-radius: 4px;
+        padding: 6px 8px;
         font-size: 11px;
         font-family: monospace;
     }
-    :global(.kbt-measure-label) {
-        background: rgba(15,15,25,0.9);
+    .nt-measure-item-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .nt-measure-item-actions {
+        display: flex;
+        gap: 4px;
+    }
+    .nt-measure-edit {
+        margin-top: 8px;
+        padding-top: 8px;
+        border-top: 1px solid var(--nt-border);
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+    .nt-measure-lock-row {
+        display: flex;
+        gap: 12px;
+    }
+    .nt-measure-point-grid {
+        display: grid;
+        grid-template-columns: 1fr 60px 60px;
+        gap: 4px;
+        align-items: center;
+    }
+    .nt-measure-point-label {
+        font-size: 10px;
+        color: #bbb;
+    }
+    .nt-measure-coord-input {
+        background: var(--nt-bg);
+        border: 1px solid var(--nt-border);
+        color: white;
+        padding: 3px 4px;
+        border-radius: 4px;
+        font-size: 10px;
+        width: 100%;
+        box-sizing: border-box;
+        &:focus { outline: none; border-color: #3498db; }
+    }
+    :global(.nt-measure-label) {
+        background: rgba(46,46,46,0.92);
         color: #f1c40f;
         border: 1px solid #f1c40f;
         border-radius: 4px;
@@ -2059,5 +2479,18 @@
         font-weight: bold;
         white-space: nowrap;
         transform: translate(-50%, -50%);
+    }
+
+    :global(.nt-pop) {
+        font-size: 12px;
+        max-width: 240px;
+    }
+    :global(.nt-pop-title) {
+        font-weight: bold;
+        font-size: 13px;
+        margin-bottom: 4px;
+    }
+    :global(.nt-pop-row) {
+        margin: 2px 0;
     }
 </style>
