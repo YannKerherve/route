@@ -1338,7 +1338,7 @@
     //   https://cdn.jsdelivr.net/gh/<github-user>/<repo>@<branch>/<path-to-tiles>
     // (raw.githubusercontent.com also works and updates instantly, but has
     // no CDN caching and stricter rate limits — fine for low traffic.)
-    const TILES_BASE_URL = 'https://cdn.jsdelivr.net/gh/YOUR_GITHUB_USER/YOUR_REPO@main/tiles';
+    const TILES_BASE_URL = 'https://cdn.jsdelivr.net/gh/YannKerherve/route@main/tiles';
     const TILES_BASE_URL_IS_PLACEHOLDER = TILES_BASE_URL.includes('YOUR_GITHUB_USER');
 
     const TILE_MIN_ZOOM = 6;
@@ -1973,34 +1973,50 @@
         measurements = [...measurements];
     }
 
-    // We detect the double-click ourselves from two ordinary 'click' events
-    // instead of relying on the browser/Leaflet native 'dblclick' event.
-    // Native dblclick detection can silently fail on the SECOND gesture if
-    // the map view shifts between clicks (e.g. a doubleClickZoom that wasn't
-    // fully disabled on this map wrapper causes a zoom after gesture #1,
-    // which can desync the browser's own click-count tracking for gesture
-    // #2). Two plain 'click' events within a short time window is immune to
-    // that, and Leaflet always fires 'click' reliably for every tap.
+    // We detect the "double-click" ourselves from two ordinary clicks
+    // instead of relying on the browser/Leaflet native 'dblclick' event —
+    // that event, and even Leaflet's own 'click' event on the map object,
+    // can be swallowed by Windy's own UI layer (e.g. its single-click
+    // "point forecast" handling) before it ever reaches a plugin's
+    // map.on('click', ...) listener.
+    //
+    // To guarantee we see every click, we attach a NATIVE DOM listener
+    // directly on the map's container element, in the CAPTURE phase. Capture
+    // runs before any bubble-phase listener (Windy's included) gets a
+    // chance to intercept or stop the event, so this is immune to whatever
+    // Windy does with the event afterwards.
     let lastMeasureClickTime = 0;
     const MEASURE_DBLCLICK_MS = 400;
 
-    function onMapClickForMeasure(e: any) {
+    function screenToLatLng(clientX: number, clientY: number): { lat: number, lng: number } | null {
+        if (typeof map.getContainer !== 'function' || typeof map.containerPointToLatLng !== 'function') return null;
+        const rect = map.getContainer().getBoundingClientRect();
+        const ll = map.containerPointToLatLng([clientX - rect.left, clientY - rect.top]);
+        return { lat: ll.lat, lng: ll.lng };
+    }
+
+    function onDomClickForMeasure(e: MouseEvent) {
+        const latlng = screenToLatLng(e.clientX, e.clientY);
+        if (!latlng) return;
+
         const now = Date.now();
         const isDouble = (now - lastMeasureClickTime) < MEASURE_DBLCLICK_MS;
         // Reset after a recognized double-click so a stray 3rd click doesn't
         // immediately chain into another one.
         lastMeasureClickTime = isDouble ? 0 : now;
-        if (isDouble) onMapDblClick(e);
+        if (isDouble) onMapDblClick({ latlng });
     }
 
     function toggleMeasure() {
+        const container = typeof map.getContainer === 'function' ? map.getContainer() : null;
+
         if (measureActive) {
             if (map.doubleClickZoom) map.doubleClickZoom.disable();
             lastMeasureClickTime = 0;
-            map.on('click', onMapClickForMeasure);
+            container?.addEventListener('click', onDomClickForMeasure, true);
         } else {
             if (map.doubleClickZoom) map.doubleClickZoom.enable();
-            map.off('click', onMapClickForMeasure);
+            container?.removeEventListener('click', onDomClickForMeasure, true);
             if (measureStart) {
                 measureStart.marker.remove();
                 measureStart = null;
@@ -2060,7 +2076,9 @@
         if (typeof map.off === 'function') {
             map.off('zoomend', onViewChange);
             map.off('moveend', onViewChange);
-            map.off('click', onMapClickForMeasure);
+        }
+        if (typeof map.getContainer === 'function') {
+            map.getContainer().removeEventListener('click', onDomClickForMeasure, true);
         }
         if (measureActive && map.doubleClickZoom) map.doubleClickZoom.enable();
     });
