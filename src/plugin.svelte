@@ -232,6 +232,10 @@
         </div>
         {#if showOSMPanel}
             <div style="padding:8px 6px">
+                {#if TILES_BASE_URL_IS_PLACEHOLDER}
+                    <div class="nt-error">⚠️ TILES_BASE_URL is still the placeholder (YOUR_GITHUB_USER/YOUR_REPO) — edit it near the top of the OpenSeaMap section in plugin.svelte, then rebuild.</div>
+                {/if}
+
                 <label class="nt-checkbox">
                     <input type="checkbox" bind:checked={seamarksVisible} on:change={renderSeamarks} />
                     <span>Show seamarks</span>
@@ -243,9 +247,19 @@
                     </div>
                 {:else}
                     <div class="nt-hint" style="margin-top:8px">
-                        {loadedTileCount} tile{loadedTileCount > 1 ? 's' : ''} loaded · {seamarkFeatureCount} object{seamarkFeatureCount > 1 ? 's' : ''}
+                        {loadedTileCount} tile{loadedTileCount > 1 ? 's' : ''} loaded · {seamarkFeatureCount} object{seamarkFeatureCount > 1 ? 's' : ''} visible at zoom {currentZoom.toFixed(0)}
                         {#if tilesLoading}<span class="nt-loading"> · loading…</span>{/if}
                     </div>
+                    {#if attemptedTileCount > 0 && emptyTileCount === attemptedTileCount && !TILES_BASE_URL_IS_PLACEHOLDER}
+                        <div class="nt-tz-warn" style="margin-top:6px">
+                            Every tile fetched so far came back empty. Open <code>{TILES_BASE_URL}/{'{code}'}.geojson</code> directly in a browser tab to confirm the URL/branch/path are correct.
+                        </div>
+                    {/if}
+                    {#if seamarkFeatureCount > 0 && seamarkFeatureCount < 5 && currentZoom < 12}
+                        <div class="nt-hint" style="margin-top:6px">
+                            Most "OTHER" category objects (rocks, berths, moorings…) only appear from zoom 12 — TSS/lighthouses/beacons appear earlier.
+                        </div>
+                    {/if}
                 {/if}
 
                 {#if seamarkError}<div class="nt-error">{seamarkError}</div>{/if}
@@ -1325,6 +1339,7 @@
     // (raw.githubusercontent.com also works and updates instantly, but has
     // no CDN caching and stricter rate limits — fine for low traffic.)
     const TILES_BASE_URL = 'https://cdn.jsdelivr.net/gh/YOUR_GITHUB_USER/YOUR_REPO@main/tiles';
+    const TILES_BASE_URL_IS_PLACEHOLDER = TILES_BASE_URL.includes('YOUR_GITHUB_USER');
 
     const TILE_MIN_ZOOM = 6;
 
@@ -1336,6 +1351,8 @@
     let tilesLoading       = false;
     let loadedTileCount    = 0;
     let seamarkFeatureCount = 0;
+    let attemptedTileCount  = 0;   // how many distinct tile codes we've tried to fetch
+    let emptyTileCount      = 0;   // how many of those came back with zero features (incl. 404s)
 
     const tileCache: Record<string, any[]> = {};   // code -> array of GeoJSON features
     const loadingTiles = new Set<string>();
@@ -1382,16 +1399,14 @@
     // result) both when the tile genuinely has no data and when it 404s —
     // either way there is nothing to draw there, and we should not keep
     // re-fetching it on every pan.
-    async function fetchTile(code: string): Promise<any[]> {
-        try {
-            const res = await fetch(`${TILES_BASE_URL}/${code}.geojson`);
-            if (!res.ok) return [];
-            const fc = await res.json();
-            return fc.features ?? [];
-        } catch (e) {
-            console.warn('Tile fetch failed', code, e);
-            throw e; // let the caller decide whether to cache or retry later
-        }
+    // Returns { features, status } so the caller can tell a genuine 404
+    // (tile has no data for that area — normal) apart from a network/CORS
+    // failure (worth surfacing to the user).
+    async function fetchTile(code: string): Promise<{ features: any[], status: number }> {
+        const res = await fetch(`${TILES_BASE_URL}/${code}.geojson`);
+        if (!res.ok) return { features: [], status: res.status };
+        const fc = await res.json();
+        return { features: fc.features ?? [], status: res.status };
     }
 
     async function loadVisibleTiles() {
@@ -1416,13 +1431,20 @@
 
         await Promise.all(toLoad.map(async code => {
             loadingTiles.add(code);
+            attemptedTileCount++;
             try {
-                tileCache[code] = await fetchTile(code);
+                const { features, status } = await fetchTile(code);
+                tileCache[code] = features;
+                if (features.length === 0) emptyTileCount++;
+                if (status === 404 && TILES_BASE_URL_IS_PLACEHOLDER) {
+                    seamarkError = 'TILES_BASE_URL still points to the placeholder repo — edit it in plugin.svelte.';
+                }
             } catch (e) {
-                // network/parse error (not a plain 404): don't cache, so it
-                // will be retried on the next pan/zoom instead of silently
-                // staying blank forever.
-                seamarkError = `Failed to load tile ${code}`;
+                // network/CORS/parse error (not a plain 404): don't cache,
+                // so it gets retried on the next pan/zoom instead of
+                // silently staying blank forever.
+                console.warn('Tile fetch failed', code, e);
+                seamarkError = `Failed to load tile ${code} — check TILES_BASE_URL and CORS (see browser console/network tab).`;
             } finally {
                 loadingTiles.delete(code);
             }
@@ -1951,13 +1973,34 @@
         measurements = [...measurements];
     }
 
+    // We detect the double-click ourselves from two ordinary 'click' events
+    // instead of relying on the browser/Leaflet native 'dblclick' event.
+    // Native dblclick detection can silently fail on the SECOND gesture if
+    // the map view shifts between clicks (e.g. a doubleClickZoom that wasn't
+    // fully disabled on this map wrapper causes a zoom after gesture #1,
+    // which can desync the browser's own click-count tracking for gesture
+    // #2). Two plain 'click' events within a short time window is immune to
+    // that, and Leaflet always fires 'click' reliably for every tap.
+    let lastMeasureClickTime = 0;
+    const MEASURE_DBLCLICK_MS = 400;
+
+    function onMapClickForMeasure(e: any) {
+        const now = Date.now();
+        const isDouble = (now - lastMeasureClickTime) < MEASURE_DBLCLICK_MS;
+        // Reset after a recognized double-click so a stray 3rd click doesn't
+        // immediately chain into another one.
+        lastMeasureClickTime = isDouble ? 0 : now;
+        if (isDouble) onMapDblClick(e);
+    }
+
     function toggleMeasure() {
         if (measureActive) {
             if (map.doubleClickZoom) map.doubleClickZoom.disable();
-            map.on('dblclick', onMapDblClick);
+            lastMeasureClickTime = 0;
+            map.on('click', onMapClickForMeasure);
         } else {
             if (map.doubleClickZoom) map.doubleClickZoom.enable();
-            map.off('dblclick', onMapDblClick);
+            map.off('click', onMapClickForMeasure);
             if (measureStart) {
                 measureStart.marker.remove();
                 measureStart = null;
@@ -2017,7 +2060,7 @@
         if (typeof map.off === 'function') {
             map.off('zoomend', onViewChange);
             map.off('moveend', onViewChange);
-            map.off('dblclick', onMapDblClick);
+            map.off('click', onMapClickForMeasure);
         }
         if (measureActive && map.doubleClickZoom) map.doubleClickZoom.enable();
     });
