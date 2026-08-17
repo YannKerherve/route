@@ -1338,7 +1338,7 @@
     //   https://cdn.jsdelivr.net/gh/<github-user>/<repo>@<branch>/<path-to-tiles>
     // (raw.githubusercontent.com also works and updates instantly, but has
     // no CDN caching and stricter rate limits — fine for low traffic.)
-    const TILES_BASE_URL = 'https://cdn.jsdelivr.net/gh/YannKerherve/route@main/tiles';
+    const TILES_BASE_URL = 'https://cdn.jsdelivr.net/gh/YOUR_GITHUB_USER/YOUR_REPO@main/tiles';
     const TILES_BASE_URL_IS_PLACEHOLDER = TILES_BASE_URL.includes('YOUR_GITHUB_USER');
 
     const TILE_MIN_ZOOM = 6;
@@ -1479,6 +1479,19 @@
         return (typ || 'seamark').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
     }
 
+    // Type-specific attributes (category, colour, shape...) can live in two
+    // different places depending on which export produced the tile:
+    //  - older format: props.attributes  (flat "seamark:<type>:field" tags)
+    //  - this dataset's format: props.children[seamark_type] (every
+    //    "seamark:<group>:field" tag is bucketed under children[group],
+    //    including when group === seamark_type — attributes stays empty)
+    // Try children[type] first since that's what's actually populated here.
+    function typeAttrs(props: any): any {
+        const fromChildren = props.children?.[props.seamark_type];
+        if (fromChildren && Object.keys(fromChildren).length > 0) return fromChildren;
+        return props.attributes || {};
+    }
+
     // ── Popups: show every available attribute ──────────────────
     function buildPopupHtml(props: any, lat?: number, lon?: number): string {
         const rows: string[] = [];
@@ -1491,7 +1504,7 @@
         let html = `<div class="nt-pop"><div class="nt-pop-title">${title}</div>`;
         html += `<div class="nt-pop-row"><b>Type:</b> ${typeLabel(props.seamark_type)}</div>`;
 
-        const attrs = props.attributes || {};
+        const attrs = typeAttrs(props);
         if (attrs.category) push('Category', attrs.category.replace(/_/g, ' '));
         if (attrs.colour)   push('Colour', attrs.colour.replace(/;/g, ' / '));
         if (attrs.shape)    push('Shape', attrs.shape.replace(/_/g, ' '));
@@ -1555,7 +1568,7 @@
     // ── ECDIS-style point icons (simplified IALA symbology) ─────
     function buildSeamarkIcon(props: any): { html: string, size: number } | null {
         const typ   = props.seamark_type || '';
-        const attrs = props.attributes || {};
+        const attrs = typeAttrs(props);
         const kids  = props.children || {};
         const size  = 24;
 
@@ -1571,7 +1584,10 @@
             const shape = cat === 'starboard'
                 ? `<polygon points="20,6 29,32 11,32" fill="${col}" stroke="#000" stroke-width="1"/>`
                 : `<rect x="11" y="10" width="18" height="22" fill="${col}" stroke="#000" stroke-width="1"/>`;
-            return { html: svg(pole + shape), size };
+            // White halo behind the shape so red/green reads clearly over any
+            // basemap colour, and pops at a glance without needing a click.
+            const halo = `<circle cx="20" cy="20" r="15" fill="#fff" opacity="0.9"/>`;
+            return { html: svg(pole + halo + shape), size };
         }
 
         if (typ.includes('cardinal')) {
@@ -1591,11 +1607,19 @@
                 ? `<polygon points="20,${cy - 4} 16,${cy + 4} 24,${cy + 4}" fill="#000"/>`
                 : `<polygon points="20,${cy + 4} 16,${cy - 4} 24,${cy - 4}" fill="#000"/>`;
             let topmark = '';
-            if (cat === 'north')      topmark = tri(2, true)  + tri(6, true);
-            else if (cat === 'south') topmark = tri(2, false) + tri(6, false);
-            else if (cat === 'east')  topmark = tri(2, true)  + tri(8, false);
-            else if (cat === 'west')  topmark = tri(2, false) + tri(8, true);
-            return { html: svg(pole + body + topmark), size };
+            let dirLetter = '?';
+            let dirColor = SEAMARK_COLORS.grey;
+            if (cat === 'north')      { topmark = tri(2, true)  + tri(6, true);  dirLetter = 'N'; dirColor = '#00bcd4'; }
+            else if (cat === 'south') { topmark = tri(2, false) + tri(6, false); dirLetter = 'S'; dirColor = '#e91e8c'; }
+            else if (cat === 'east')  { topmark = tri(2, true)  + tri(8, false); dirLetter = 'E'; dirColor = '#f39c12'; }
+            else if (cat === 'west')  { topmark = tri(2, false) + tri(8, true);  dirLetter = 'W'; dirColor = '#8e44ad'; }
+            // Coloured halo (non-standard, purely for at-a-glance ID) plus a
+            // bold N/E/S/W letter — the black/yellow band pattern alone is
+            // easy to misread at small sizes (N vs S, E vs W are mirror
+            // images of each other).
+            const halo = cat ? `<circle cx="20" cy="20" r="16" fill="${dirColor}" opacity="0.35"/>` : '';
+            const label = cat ? `<text x="20" y="9" font-size="9" font-weight="bold" text-anchor="middle" fill="${dirColor}" stroke="#000" stroke-width="0.4">${dirLetter}</text>` : '';
+            return { html: svg(pole + halo + body + topmark + label), size };
         }
 
         if (typ.includes('isolated_danger')) {
