@@ -1338,7 +1338,7 @@
     //   https://cdn.jsdelivr.net/gh/<github-user>/<repo>@<branch>/<path-to-tiles>
     // (raw.githubusercontent.com also works and updates instantly, but has
     // no CDN caching and stricter rate limits — fine for low traffic.)
-    const TILES_BASE_URL = 'https://cdn.jsdelivr.net/gh/YOUR_GITHUB_USER/YOUR_REPO@main/tiles';
+    const TILES_BASE_URL = 'https://cdn.jsdelivr.net/gh/YannKerherve/route@main/tiles';
     const TILES_BASE_URL_IS_PLACEHOLDER = TILES_BASE_URL.includes('YOUR_GITHUB_USER');
 
     const TILE_MIN_ZOOM = 6;
