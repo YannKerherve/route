@@ -245,6 +245,10 @@
                     <div class="nt-hint" style="margin-top:8px">
                         Zoom in to level {TILE_MIN_ZOOM}+ to load nautical chart tiles ({currentZoom.toFixed(0)} currently).
                     </div>
+                {:else if tooManyTilesForView}
+                    <div class="nt-tz-warn" style="margin-top:8px">
+                        {pendingTileCount} tiles would be needed for this view — zoom in a bit more to load nautical chart tiles here.
+                    </div>
                 {:else}
                     <div class="nt-hint" style="margin-top:8px">
                         {loadedTileCount} tile{loadedTileCount > 1 ? 's' : ''} loaded · {seamarkFeatureCount} object{seamarkFeatureCount > 1 ? 's' : ''} visible at zoom {currentZoom.toFixed(0)}
@@ -1318,11 +1322,12 @@
         });
     }
 
-    // ─── OPENSEAMAP — auto-loaded grid tiles ───────────────────
+    // ─── OPENSEAMAP — auto-loaded 1°×1° grid tiles ─────────────
     // Grid convention (see tools/split_tiles.py):
-    //   longitude band (number, 1-36), 10 deg wide, starting at 0E going east
-    //   latitude band (letter, A-R), 10 deg wide, starting at 90N
-    //   tile code = "{band}{letter}", e.g. "1A" = 90N-80N/0E-10E, "3J" = 0S-10S/20E-30E
+    //   tile code = "{latDeg}_{lonDeg}", where latDeg/lonDeg are the integer
+    //   (floored) degree of the tile's SOUTH-WEST corner, e.g.:
+    //     "48_-5"  -> 48N-49N / 5W-4W
+    //     "49_-6"  -> 49N-50N / 6W-5W
     //
     // Tiles are plain static .geojson files fetched at runtime over HTTP from
     // your GitHub repo (via jsDelivr or raw.githubusercontent.com) — NOT
@@ -1341,24 +1346,23 @@
     const TILES_BASE_URL = 'https://cdn.jsdelivr.net/gh/YannKerherve/route@main/tiles';
     const TILES_BASE_URL_IS_PLACEHOLDER = TILES_BASE_URL.includes('YOUR_GITHUB_USER');
 
-    const TILE_MIN_ZOOM = 6;
-    const AVAILABLE_TILES = new Set([
-    "B2", "B3", "B4", "B5", "B6", "B7", "B8", "B9", "B10", "B11", "B12", "B13", "B15", "B17", "B18", "B21", "B25",
-    "C1", "C4", "C5", "C6", "C7", "C8", "C9", "C10", "C13", "C17", "C18", "C19", "C20", "C21", "C22", "C23", "C24", "C25", "C27", "C36",
-    "D3", "D4", "D5", "D6", "D7", "D8", "D9", "D10", "D11", "D12", "D13", "D14", "D15", "D16", "D17", "D18", "D19", "D20", "D21", "D22", "D23", "D24", "D25", "D26", "D27", "D36",
-    "E1", "E2", "E3", "E4", "E5", "E6", "E7", "E8", "E9", "E10", "E11", "E12", "E13", "E14", "E15", "E16", "E17", "E18", "E19", "E20", "E23", "E24", "E25", "E26", "E27", "E36",
-    "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12", "F13", "F14", "F15", "F16", "F19", "F24", "F25", "F26", "F27", "F36",
-    "G1", "G4", "G5", "G6", "G7", "G8", "G9", "G10", "G11", "G12", "G13", "G14", "G15", "G19", "G20", "G21", "G25", "G26", "G27", "G28",
-    "H1", "H2", "H3", "H4", "H5", "H6", "H7", "H8", "H9", "H10", "H11", "H12", "H13", "H14", "H15", "H16", "H17", "H20", "H21", "H26", "H27",
-    "I1", "I2", "I3", "I4", "I5", "I6", "I8", "I9", "I10", "I11", "I12", "I13", "I14", "I15", "I16", "I17", "I18", "I19", "I20", "I21", "I27", "I31", "I32", "I34",
-    "J1", "J2", "J3", "J4", "J5", "J6", "J8", "J10", "J11", "J12", "J13", "J14", "J15", "J16", "J17", "J18", "J19", "J21", "J22", "J23", "J24", "J27", "J28", "J29", "J30", "J31", "J32", "J33", "J35",
-    "K2", "K3", "K4", "K5", "K6", "K7", "K10", "K11", "K12", "K13", "K14", "K15", "K16", "K17", "K18", "K19", "K20", "K21", "K22", "K23", "K28", "K29", "K30", "K31", "K32", "K33", "K36",
-    "L2", "L3", "L4", "L5", "L6", "L12", "L14", "L15", "L16", "L17", "L18", "L19", "L20", "L21", "L22", "L23", "L26", "L29", "L30", "L31", "L32", "L33", "L34", "L36",
-    "M2", "M3", "M4", "M8", "M12", "M13", "M14", "M15", "M16", "M17", "M18", "M19", "M20", "M21", "M22", "M28", "M29", "M30", "M31", "M32", "M35",
-    "N1", "N6", "N7", "N8", "N15", "N17", "N18", "N19", "N20", "N22", "N29", "N30", "N31", "N36",
-    "O8", "O16", "O17", "O18", "O19", "O29", "O30", "O31", "O33",
-    "P20", "P21"
-]);
+    // 1° tiles are far smaller/cheaper to parse than the old 10° tiles, but
+    // there are ~100x more of them for the same area, so a wide zoomed-out
+    // view could otherwise trigger a huge burst of parallel HTTP requests
+    // ("ramage"). Two safeguards keep that in check:
+    //  - TILE_MIN_ZOOM raised so tiles only start loading once the visible
+    //    area is reasonably small.
+    //  - MAX_TILES_PER_VIEW: a hard cap; if more tiles than this would be
+    //    needed for the current view we just ask the user to zoom in a bit
+    //    more, instead of firing them all off at once.
+    // There's no more hardcoded per-tile whitelist (AVAILABLE_TILES): at 1°
+    // resolution that list would be huge and need regenerating every time
+    // tiles are added, so we simply let fetchTile() 404 gracefully (it
+    // already caches empty results so a given tile is never re-requested).
+    const TILE_MIN_ZOOM = 8;
+    const MAX_TILES_PER_VIEW = 150;
+    const TILE_FETCH_BATCH_SIZE = 16; // fetched concurrently, in waves, to stay gentle on the CDN
+
     let showOSMPanel      = false;
     let seamarksVisible   = true;
     let seamarkLayer      = null;
@@ -1369,59 +1373,42 @@
     let seamarkFeatureCount = 0;
     let attemptedTileCount  = 0;   // how many distinct tile codes we've tried to fetch
     let emptyTileCount      = 0;   // how many of those came back with zero features (incl. 404s)
+    let tooManyTilesForView = false;
+    let pendingTileCount    = 0;
 
     const tileCache: Record<string, any[]> = {};   // code -> array of GeoJSON features
     const loadingTiles = new Set<string>();
 
-    function lonBand(lon: number): number {
-        const l = ((lon % 360) + 360) % 360;
-        return Math.floor(l / 10) + 1; // 1..36
+    // Normalizes a longitude to [-180, 180).
+    function normLon(lon: number): number {
+        return ((lon + 180) % 360 + 360) % 360 - 180;
     }
 
-    function latBandLetter(lat: number): string {
-        let idx = Math.floor((90 - lat) / 10);
-        idx = Math.max(0, Math.min(17, idx));
-        return String.fromCharCode(65 + idx); // A..R
-    }
+    function tilesForBounds(bounds: any): string[] {
+        const south = Math.max(-90, Math.floor(bounds.getSouth()));
+        const north = Math.min(89,  Math.floor(bounds.getNorth()));
 
-function tilesForBounds(bounds: any): string[] {
-    const south = bounds.getSouth(), north = bounds.getNorth();
-    const west  = bounds.getWest(),  east  = bounds.getEast();
+        let west = normLon(bounds.getWest());
+        let east = normLon(bounds.getEast());
+        if (east <= west) east += 360; // antimeridian wrap
 
-    let latTop    = Math.floor((90 - north) / 10);
-    let latBottom = Math.floor((90 - south) / 10);
-    latTop    = Math.max(0, Math.min(17, latTop));
-    latBottom = Math.max(0, Math.min(17, latBottom));
+        const lonStart = Math.floor(west);
+        const lonEnd   = Math.floor(east - 0.0000001);
 
-    let w = ((west % 360) + 360) % 360;
-    let e = ((east % 360) + 360) % 360;
-    if (e <= w) e += 360;
-
-    const lonStart = Math.floor(w / 10);
-    const lonEnd   = Math.floor((e - 0.0001) / 10);
-
-    const codes: string[] = [];
-    for (let li = latTop; li <= latBottom; li++) {
-        const letter = String.fromCharCode(65 + li);
-        for (let ni = lonStart; ni <= lonEnd; ni++) {
-            const band = ((ni % 36) + 36) % 36 + 1;
-            const code = `${letter}${band}`;
-            
-            if (AVAILABLE_TILES.has(code)) {
-                codes.push(code);
+        const codes: string[] = [];
+        for (let la = south; la <= north; la++) {
+            for (let lo = lonStart; lo <= lonEnd; lo++) {
+                const lonDeg = Math.floor(normLon(lo));
+                codes.push(`${la}_${lonDeg}`);
             }
         }
+        return codes;
     }
-    return codes;
-}
 
     // Fetches one tile's GeoJSON over HTTP. Returns [] (and caches that empty
     // result) both when the tile genuinely has no data and when it 404s —
     // either way there is nothing to draw there, and we should not keep
     // re-fetching it on every pan.
-    // Returns { features, status } so the caller can tell a genuine 404
-    // (tile has no data for that area — normal) apart from a network/CORS
-    // failure (worth surfacing to the user).
     async function fetchTile(code: string): Promise<{ features: any[], status: number }> {
         const res = await fetch(`${TILES_BASE_URL}/${code}.geojson`);
         if (!res.ok) return { features: [], status: res.status };
@@ -1429,16 +1416,57 @@ function tilesForBounds(bounds: any): string[] {
         return { features: fc.features ?? [], status: res.status };
     }
 
+    // Fetches a list of tile codes in small concurrent waves rather than all
+    // at once, so we never blast the CDN with hundreds of simultaneous
+    // requests when a big chunk of new tiles enters view at once.
+    async function fetchTilesInBatches(codes: string[]): Promise<void> {
+        for (let i = 0; i < codes.length; i += TILE_FETCH_BATCH_SIZE) {
+            const batch = codes.slice(i, i + TILE_FETCH_BATCH_SIZE);
+            await Promise.all(batch.map(async code => {
+                loadingTiles.add(code);
+                attemptedTileCount++;
+                try {
+                    const { features, status } = await fetchTile(code);
+                    tileCache[code] = features;
+                    if (features.length === 0) emptyTileCount++;
+                    if (status === 404 && TILES_BASE_URL_IS_PLACEHOLDER) {
+                        seamarkError = 'TILES_BASE_URL still points to the placeholder repo — edit it in plugin.svelte.';
+                    }
+                } catch (e) {
+                    // network/CORS/parse error (not a plain 404): don't cache,
+                    // so it gets retried on the next pan/zoom instead of
+                    // silently staying blank forever.
+                    console.warn('Tile fetch failed', code, e);
+                    seamarkError = `Failed to load tile ${code} — check TILES_BASE_URL and CORS (see browser console/network tab).`;
+                } finally {
+                    loadingTiles.delete(code);
+                }
+            }));
+        }
+    }
+
     async function loadVisibleTiles() {
         currentZoom = typeof map.getZoom === 'function' ? map.getZoom() : 0;
 
         if (currentZoom < TILE_MIN_ZOOM) {
+            tooManyTilesForView = false;
             renderSeamarks();
             return;
         }
         if (typeof map.getBounds !== 'function') return;
 
         const codes = tilesForBounds(map.getBounds());
+
+        if (codes.length > MAX_TILES_PER_VIEW) {
+            // Too many 1° cells for this view — don't fire a request storm,
+            // just ask the user to zoom in a bit more.
+            tooManyTilesForView = true;
+            pendingTileCount = codes.length;
+            renderSeamarks();
+            return;
+        }
+        tooManyTilesForView = false;
+
         const toLoad = codes.filter(c => !(c in tileCache) && !loadingTiles.has(c));
 
         if (toLoad.length === 0) {
@@ -1449,26 +1477,7 @@ function tilesForBounds(bounds: any): string[] {
         tilesLoading = true;
         seamarkError = '';
 
-        await Promise.all(toLoad.map(async code => {
-            loadingTiles.add(code);
-            attemptedTileCount++;
-            try {
-                const { features, status } = await fetchTile(code);
-                tileCache[code] = features;
-                if (features.length === 0) emptyTileCount++;
-                if (status === 404 && TILES_BASE_URL_IS_PLACEHOLDER) {
-                    seamarkError = 'TILES_BASE_URL still points to the placeholder repo — edit it in plugin.svelte.';
-                }
-            } catch (e) {
-                // network/CORS/parse error (not a plain 404): don't cache,
-                // so it gets retried on the next pan/zoom instead of
-                // silently staying blank forever.
-                console.warn('Tile fetch failed', code, e);
-                seamarkError = `Failed to load tile ${code} — check TILES_BASE_URL and CORS (see browser console/network tab).`;
-            } finally {
-                loadingTiles.delete(code);
-            }
-        }));
+        await fetchTilesInBatches(toLoad);
 
         loadedTileCount = Object.keys(tileCache).length;
         tilesLoading = loadingTiles.size > 0;
@@ -1830,7 +1839,7 @@ function tilesForBounds(bounds: any): string[] {
         sectors.forEach(s => {
             const col = firstColor(s.colour) === '#888888' ? '#f1c40f' : firstColor(s.colour);
             if (s.sector_start !== undefined && s.sector_end !== undefined) {
-                const start = (parseFloat(s.sector_start) + 180) % 360, end = (parseFloat(s.sector_start) + 180) % 360;
+                const start = (parseFloat(s.sector_start) + 180) % 360, end = (parseFloat(s.sector_end) + 180) % 360;
                 const sweep = ((end - start + 360) % 360) || 360;
                 const largeArc = sweep > 180 ? 1 : 0;
                 const [x1, y1] = toXY(start, r);
@@ -1878,7 +1887,7 @@ function tilesForBounds(bounds: any): string[] {
         seamarkLayer.clearLayers();
 
         seamarkFeatureCount = 0;
-        if (!seamarksVisible || currentZoom < TILE_MIN_ZOOM) return;
+        if (!seamarksVisible || currentZoom < TILE_MIN_ZOOM || tooManyTilesForView) return;
 
         const zoom = currentZoom;
         const seen = new Set<number>();
@@ -1928,6 +1937,9 @@ function tilesForBounds(bounds: any): string[] {
     }
 
     // ─── MEASURING TOOLS (distance / true bearing) ──────────────
+    // Uses Leaflet's own map 'click' event directly — simplest possible
+    // wiring, and reliable since Leaflet already gives us the clicked
+    // lat/lon (no manual container/rect math needed).
     let showmeasurePanel = false;
     let measureActive    = false;
     let measureLayer     = null;
@@ -2004,7 +2016,9 @@ function tilesForBounds(bounds: any): string[] {
         m.layers = [startMarker, endMarker, line, label];
     }
 
-    function placeMeasurePoint(e: { latlng: { lat: number, lng: number } }) {
+    // Single Leaflet map click handler: first click sets the start point,
+    // second click sets the end point and finalises the measurement.
+    function onMapClickForMeasure(e: { latlng: { lat: number, lng: number } }) {
         const { lat, lng } = e.latlng;
 
         if (!measureStart) {
@@ -2053,43 +2067,13 @@ function tilesForBounds(bounds: any): string[] {
         measurements = [...measurements];
     }
 
-    // Single click per point (start, then end) instead of double-click:
-    // double-click detection (native 'dblclick', or our own two-click
-    // timing) turned out to be unreliable through Windy's map layer —
-    // one gesture would work, the next silently wouldn't. A plain single
-    // click has no timing window to get out of sync, so it's immune to
-    // that whole class of problem, and is arguably nicer to use anyway.
-    //
-    // We still attach the listener directly on the map's DOM container in
-    // the CAPTURE phase (not map.on('click', ...)) so we see the event
-    // before Windy's own UI layer (e.g. its single-click "point forecast"
-    // handling) gets a chance to intercept or stop it. While measuring we
-    // also stopPropagation() so Windy's own click handling doesn't fire at
-    // the same time as we place a point.
-    function screenToLatLng(clientX: number, clientY: number): { lat: number, lng: number } | null {
-        if (typeof map.getContainer !== 'function' || typeof map.containerPointToLatLng !== 'function') return null;
-        const rect = map.getContainer().getBoundingClientRect();
-        const ll = map.containerPointToLatLng([clientX - rect.left, clientY - rect.top]);
-        return { lat: ll.lat, lng: ll.lng };
-    }
-
-    function onDomClickForMeasure(e: MouseEvent) {
-        if ((e.target as HTMLElement).closest('.nt-panel')) return;
-        const latlng = screenToLatLng(e.clientX, e.clientY);
-        if (!latlng) return;
-        e.stopPropagation();
-        placeMeasurePoint({ latlng });
-    }
-
     function toggleMeasure() {
-        const container = typeof map.getContainer === 'function' ? map.getContainer() : null;
-
         if (measureActive) {
             if (map.doubleClickZoom) map.doubleClickZoom.disable();
-            container?.addEventListener('click', onDomClickForMeasure, true);
+            map.on('click', onMapClickForMeasure);
         } else {
             if (map.doubleClickZoom) map.doubleClickZoom.enable();
-            container?.removeEventListener('click', onDomClickForMeasure, true);
+            map.off('click', onMapClickForMeasure);
             if (measureStart) {
                 measureStart.marker.remove();
                 measureStart = null;
@@ -2150,9 +2134,7 @@ function clearAllMeasurements() {
             map.off('zoomend', onViewChange);
             map.off('moveend', onViewChange);
         }
-        if (typeof map.getContainer === 'function') {
-            map.getContainer().removeEventListener('click', onDomClickForMeasure, true);
-        }
+        map.off('click', onMapClickForMeasure);
         if (measureActive && map.doubleClickZoom) map.doubleClickZoom.enable();
     });
 
