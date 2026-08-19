@@ -2003,13 +2003,21 @@
         m.layers.forEach((l: any) => measureLayer.removeLayer(l));
         m.layers = [];
 
-        const startMarker = L.circleMarker([m.startLat, m.startLon], {
-            radius: 5, color: '#f1c40f', fillColor: '#f1c40f', fillOpacity: 1, weight: 2
-        }).addTo(measureLayer).bindTooltip('A', { permanent: false });
+const startMarker = L.circleMarker([m.startLat, m.startLon], {
+    radius: 5,
+    color: '#f1c40f',
+    fillColor: '#f1c40f',
+    fillOpacity: 1,
+    weight: 2
+}).addTo(measureLayer).bindTooltip('A', { permanent: false });
 
-        const endMarker = L.circleMarker([m.endLat, m.endLon], {
-            radius: 5, color: '#f1c40f', fillColor: '#f1c40f', fillOpacity: 1, weight: 2
-        }).addTo(measureLayer).bindTooltip('B', { permanent: false });
+const endMarker = L.circleMarker([m.endLat, m.endLon], {
+    radius: 5,
+    color: '#f1c40f',
+    fillColor: '#f1c40f',
+    fillOpacity: 1,
+    weight: 2
+}).addTo(measureLayer).bindTooltip('B', { permanent: false });
 
         const line = L.polyline(
             [[m.startLat, m.startLon], [m.endLat, m.endLon]],
