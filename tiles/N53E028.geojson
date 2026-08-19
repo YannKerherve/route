@@ -1,0 +1,1 @@
+{"type":"FeatureCollection","features":[{"type":"Feature","geometry":{"type":"Point","coordinates":[28.9595856,53.5021314]},"properties":{"osm_id":7409051540,"osm_type":"node","seamark_type":"berth","display_class":"OTHER","min_zoom":12,"importance":1,"name":null,"ref":null,"common":{"type":"berth"},"children":{},"osm_tags":{"seamark:type":"berth"}}}],"type":"FeatureCollection"}

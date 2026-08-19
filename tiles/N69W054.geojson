@@ -1,0 +1,1 @@
+{"type":"FeatureCollection","features":[{"type":"Feature","geometry":{"type":"Point","coordinates":[-53.5322414,69.2389361]},"properties":{"osm_id":13128659525,"osm_type":"node","seamark_type":"rock","display_class":"OTHER","min_zoom":12,"importance":1,"name":null,"ref":null,"common":{"type":"rock"},"children":{},"osm_tags":{"seamark:type":"rock"}}}],"type":"FeatureCollection"}
