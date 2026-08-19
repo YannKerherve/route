@@ -1342,7 +1342,23 @@
     const TILES_BASE_URL_IS_PLACEHOLDER = TILES_BASE_URL.includes('YOUR_GITHUB_USER');
 
     const TILE_MIN_ZOOM = 6;
-
+    const AVAILABLE_TILES = new Set([
+    "B2", "B3", "B4", "B5", "B6", "B7", "B8", "B9", "B10", "B11", "B12", "B13", "B15", "B17", "B18", "B21", "B25",
+    "C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10", "C13", "C17", "C18", "C19", "C20", "C21", "C22", "C23", "C24", "C25", "C27", "C36",
+    "D1", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9", "D10", "D11", "D12", "D13", "D14", "D15", "D16", "D17", "D18", "D19", "D20", "D21", "D22", "D23", "D24", "D25", "D26", "D27", "D36",
+    "E1", "E2", "E3", "E4", "E5", "E6", "E7", "E8", "E9", "E10", "E11", "E12", "E13", "E14", "E15", "E16", "E17", "E18", "E19", "E20", "E23", "E24", "E25", "E26", "E27", "E36",
+    "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12", "F13", "F14", "F15", "F16", "F19", "F24", "F25", "F26", "F27", "F36",
+    "G1", "G4", "G5", "G6", "G7", "G8", "G9", "G10", "G11", "G12", "G13", "G14", "G15", "G19", "G20", "G21", "G25", "G26", "G27", "G28",
+    "H1", "H2", "H3", "H4", "H5", "H6", "H7", "H8", "H9", "H10", "H11", "H12", "H13", "H14", "H15", "H16", "H17", "H20", "H21", "H26", "H27",
+    "I1", "I2", "I3", "I4", "I5", "I6", "I8", "I9", "I10", "I11", "I12", "I13", "I14", "I15", "I16", "I17", "I18", "I19", "I20", "I21", "I27", "I31", "I32", "I34",
+    "J1", "J2", "J3", "J4", "J5", "J6", "J8", "J10", "J11", "J12", "J13", "J14", "J15", "J16", "J17", "J18", "J19", "J21", "J22", "J23", "J24", "J27", "J28", "J29", "J30", "J31", "J32", "J33", "J35",
+    "K2", "K3", "K4", "K5", "K6", "K7", "K10", "K11", "K12", "K13", "K14", "K15", "K16", "K17", "K18", "K19", "K20", "K21", "K22", "K23", "K28", "K29", "K30", "K31", "K32", "K33", "K36",
+    "L2", "L3", "L4", "L5", "L6", "L12", "L14", "L15", "L16", "L17", "L18", "L19", "L20", "L21", "L22", "L23", "L26", "L29", "L30", "L31", "L32", "L33", "L34", "L36",
+    "M2", "M3", "M4", "M8", "M12", "M13", "M14", "M15", "M16", "M17", "M18", "M19", "M20", "M21", "M22", "M28", "M29", "M30", "M31", "M32", "M35",
+    "N1", "N6", "N7", "N8", "N15", "N17", "N18", "N19", "N20", "N22", "N29", "N30", "N31", "N36",
+    "O8", "O16", "O17", "O18", "O19", "O29", "O30", "O31", "O33",
+    "P20", "P21"
+]);
     let showOSMPanel      = false;
     let seamarksVisible   = true;
     let seamarkLayer      = null;
@@ -1368,32 +1384,36 @@
         return String.fromCharCode(65 + idx); // A..R
     }
 
-    function tilesForBounds(bounds: any): string[] {
-        const south = bounds.getSouth(), north = bounds.getNorth();
-        const west  = bounds.getWest(),  east  = bounds.getEast();
+function tilesForBounds(bounds: any): string[] {
+    const south = bounds.getSouth(), north = bounds.getNorth();
+    const west  = bounds.getWest(),  east  = bounds.getEast();
 
-        let latTop    = Math.floor((90 - north) / 10);
-        let latBottom = Math.floor((90 - south) / 10);
-        latTop    = Math.max(0, Math.min(17, latTop));
-        latBottom = Math.max(0, Math.min(17, latBottom));
+    let latTop    = Math.floor((90 - north) / 10);
+    let latBottom = Math.floor((90 - south) / 10);
+    latTop    = Math.max(0, Math.min(17, latTop));
+    latBottom = Math.max(0, Math.min(17, latBottom));
 
-        let w = ((west % 360) + 360) % 360;
-        let e = ((east % 360) + 360) % 360;
-        if (e <= w) e += 360; // handle wraparound
+    let w = ((west % 360) + 360) % 360;
+    let e = ((east % 360) + 360) % 360;
+    if (e <= w) e += 360;
 
-        const lonStart = Math.floor(w / 10);
-        const lonEnd   = Math.floor((e - 0.0001) / 10);
+    const lonStart = Math.floor(w / 10);
+    const lonEnd   = Math.floor((e - 0.0001) / 10);
 
-        const codes: string[] = [];
-        for (let li = latTop; li <= latBottom; li++) {
-            const letter = String.fromCharCode(65 + li);
-            for (let ni = lonStart; ni <= lonEnd; ni++) {
-                const band = ((ni % 36) + 36) % 36 + 1;
-                codes.push(`${band}${letter}`);
+    const codes: string[] = [];
+    for (let li = latTop; li <= latBottom; li++) {
+        const letter = String.fromCharCode(65 + li);
+        for (let ni = lonStart; ni <= lonEnd; ni++) {
+            const band = ((ni % 36) + 36) % 36 + 1;
+            const code = `${letter}${band}`;
+            
+            if (AVAILABLE_TILES.has(code)) {
+                codes.push(code);
             }
         }
-        return codes;
     }
+    return codes;
+}
 
     // Fetches one tile's GeoJSON over HTTP. Returns [] (and caches that empty
     // result) both when the tile genuinely has no data and when it 404s —
