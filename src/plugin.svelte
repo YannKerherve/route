@@ -1630,9 +1630,9 @@
             const cat = (attrs.category || '').toLowerCase();
             const bandTop = cat === 'south' || cat === 'west' ? SEAMARK_COLORS.yellow : SEAMARK_COLORS.black;
             const bandBot = cat === 'south' ? SEAMARK_COLORS.black
-                          : cat === 'north' ? SEAMARK_COLORS.yellow
+                          : cat === 'north' || cat === 'west' ? SEAMARK_COLORS.yellow
                           : SEAMARK_COLORS.black;
-            const bandMid = (cat === 'east' || cat === 'west') ? SEAMARK_COLORS.yellow : null;
+            const bandMid = (cat === 'east') ? SEAMARK_COLORS.yellow : SEAMARK_COLORS.black;;
             const body = bandMid
                 ? `<rect x="12" y="10" width="16" height="8" fill="${bandTop}"/>
                    <rect x="12" y="18" width="16" height="6" fill="${bandMid}"/>
@@ -1810,7 +1810,7 @@
         sectors.forEach(s => {
             const col = firstColor(s.colour) === '#888888' ? '#f1c40f' : firstColor(s.colour);
             if (s.sector_start !== undefined && s.sector_end !== undefined) {
-                const start = parseFloat(s.sector_start), end = parseFloat(s.sector_end);
+                const start = (parseFloat(s.sector_start) + 180) % 360, end = (parseFloat(s.sector_start) + 180) % 360;
                 const sweep = ((end - start + 360) % 360) || 360;
                 const largeArc = sweep > 180 ? 1 : 0;
                 const [x1, y1] = toXY(start, r);
@@ -2054,6 +2054,7 @@
     }
 
     function onDomClickForMeasure(e: MouseEvent) {
+        if ((e.target as HTMLElement).closest('.nt-panel')) return;
         const latlng = screenToLatLng(e.clientX, e.clientY);
         if (!latlng) return;
         e.stopPropagation();
