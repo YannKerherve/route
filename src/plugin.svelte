@@ -1955,7 +1955,7 @@
     }
 
     function drawMeasurement(m: any) {
-        m.layers.forEach((l: any) => l.remove());
+        m.layers.forEach((l: any) => measureLayer.removeLayer(l));
         m.layers = [];
 
         const startMarker = L.circleMarker([m.startLat, m.startLon], {
@@ -1995,7 +1995,7 @@
             return;
         }
 
-        measureStart.marker.remove();
+        measureLayer.removeLayer(measureStart.marker);
 
         const distNM = haversineNM(measureStart.lat, measureStart.lon, lat, lng);
         const brg    = initialBearing(measureStart.lat, measureStart.lon, lat, lng);
@@ -2077,20 +2077,20 @@
         }
     }
 
-    function removeMeasurement(id: number) {
-        const m = measurements.find(x => x.id === id);
-        if (m) m.layers.forEach((l: any) => l.remove());
-        measurements = measurements.filter(x => x.id !== id);
-    }
+function removeMeasurement(id: number) {
+    const m = measurements.find(x => x.id === id);
+    if (m) m.layers.forEach((l: any) => measureLayer.removeLayer(l));
+    measurements = measurements.filter(x => x.id !== id);
+}
 
-    function clearAllMeasurements() {
-        measurements.forEach(m => m.layers.forEach((l: any) => l.remove()));
-        measurements = [];
-        if (measureStart) {
-            measureStart.marker.remove();
-            measureStart = null;
-        }
+function clearAllMeasurements() {
+    measurements.forEach(m => m.layers.forEach((l: any) => measureLayer.removeLayer(l)));
+    measurements = [];
+    if (measureStart) {
+        measureLayer.removeLayer(measureStart.marker);
+        measureStart = null;
     }
+}
 
     // ─── WEATHERSCORE (placeholder) ─────────────────────────────
     let showWSPanel = false;
