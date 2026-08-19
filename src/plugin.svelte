@@ -1323,11 +1323,14 @@
     }
 
     // ─── OPENSEAMAP — auto-loaded 1°×1° grid tiles ─────────────
-    // Grid convention (see tools/split_tiles.py):
-    //   tile code = "{latDeg}_{lonDeg}", where latDeg/lonDeg are the integer
-    //   (floored) degree of the tile's SOUTH-WEST corner, e.g.:
-    //     "48_-5"  -> 48N-49N / 5W-4W
-    //     "49_-6"  -> 49N-50N / 6W-5W
+    // Grid convention (see tools/split_tiles.py) — standard geographic tile
+    // naming, keyed off the tile's SOUTH-WEST corner:
+    //   "{N|S}{lat:2 digits}{E|W}{lon:3 digits}", e.g.:
+    //     "N47W003" -> 47N-48N / 3W-2W
+    //     "N48W005" -> 48N-49N / 5W-4W
+    //     "S03W123" -> 3S-2S   / 123W-122W
+    // Empty cells are never written by the split script, so a missing tile
+    // simply means "no data here" — see the 404 handling in fetchTile().
     //
     // Tiles are plain static .geojson files fetched at runtime over HTTP from
     // your GitHub repo (via jsDelivr or raw.githubusercontent.com) — NOT
@@ -1384,6 +1387,16 @@
         return ((lon + 180) % 360 + 360) % 360 - 180;
     }
 
+    // Builds a standard "{N|S}{lat:2}{E|W}{lon:3}" tile code from the
+    // floored (south-west corner) integer lat/lon of a 1°×1° cell.
+    function tileCodeForCell(latFloor: number, lonFloor: number): string {
+        const latHem = latFloor >= 0 ? 'N' : 'S';
+        const latAbs = String(Math.abs(latFloor)).padStart(2, '0');
+        const lonHem = lonFloor >= 0 ? 'E' : 'W';
+        const lonAbs = String(Math.abs(lonFloor)).padStart(3, '0');
+        return `${latHem}${latAbs}${lonHem}${lonAbs}`;
+    }
+
     function tilesForBounds(bounds: any): string[] {
         const south = Math.max(-90, Math.floor(bounds.getSouth()));
         const north = Math.min(89,  Math.floor(bounds.getNorth()));
@@ -1399,7 +1412,7 @@
         for (let la = south; la <= north; la++) {
             for (let lo = lonStart; lo <= lonEnd; lo++) {
                 const lonDeg = Math.floor(normLon(lo));
-                codes.push(`${la}_${lonDeg}`);
+                codes.push(tileCodeForCell(la, lonDeg));
             }
         }
         return codes;
