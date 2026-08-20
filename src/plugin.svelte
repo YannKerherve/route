@@ -289,7 +289,7 @@
                     Click once for the start point, click again for the end point. Distance in nautical miles, true bearing.
                 </div>
 
-                {#if measureStart}
+                {#if pendingPoint}
                     <div class="nt-tz-warn" style="margin-top:8px">🎯 Start point set — click again to set the end point</div>
                 {/if}
 
@@ -1378,9 +1378,22 @@
     let emptyTileCount      = 0;   // how many of those came back with zero features (incl. 404s)
     let tooManyTilesForView = false;
     let pendingTileCount    = 0;
+    let visibleTileCodes: string[] = []; // tile codes needed for the current view — renderSeamarks() only walks these
 
-    const tileCache: Record<string, any[]> = {};   // code -> array of GeoJSON features
+    const tileCache: Record<string, any[]> = {};   // code -> array of GeoJSON features, pruned down to visibleTileCodes after every load
     const loadingTiles = new Set<string>();
+
+    // Drops every cached tile that isn't in `keepCodes`. Called after every
+    // pan/zoom so the cache — and therefore the work renderSeamarks() has to
+    // do — never grows past what's actually on screen right now. Tiles
+    // dropped here just get re-fetched if you pan back; the browser/CDN
+    // cache makes that near-instant, so it's a good trade for staying fast.
+    function pruneTileCache(keepCodes: string[]): void {
+        const keep = new Set(keepCodes);
+        for (const key of Object.keys(tileCache)) {
+            if (!keep.has(key)) delete tileCache[key];
+        }
+    }
 
     // Normalizes a longitude to [-180, 180).
     function normLon(lon: number): number {
@@ -1463,6 +1476,8 @@
 
         if (currentZoom < TILE_MIN_ZOOM) {
             tooManyTilesForView = false;
+            visibleTileCodes = [];
+            pruneTileCache([]);
             renderSeamarks();
             return;
         }
@@ -1475,10 +1490,13 @@
             // just ask the user to zoom in a bit more.
             tooManyTilesForView = true;
             pendingTileCount = codes.length;
+            visibleTileCodes = [];
             renderSeamarks();
             return;
         }
         tooManyTilesForView = false;
+        visibleTileCodes = codes;
+        pruneTileCache(codes);
 
         const toLoad = codes.filter(c => !(c in tileCache) && !loadingTiles.has(c));
 
@@ -1905,7 +1923,9 @@
         const zoom = currentZoom;
         const seen = new Set<number>();
 
-        Object.values(tileCache).forEach((features: any[]) => {
+        visibleTileCodes.forEach(code => {
+            const features = tileCache[code];
+            if (!features) return; // not fetched yet, or genuinely empty
             features.forEach(f => {
                 const props = f.properties || {};
                 if (seen.has(props.osm_id)) return; // dedupe across overlapping tiles
@@ -1950,45 +1970,51 @@
     }
 
     // ─── MEASURING TOOLS (distance / true bearing) ──────────────
-    // Uses Leaflet's own map 'click' event directly — simplest possible
-    // wiring, and reliable since Leaflet already gives us the clicked
-    // lat/lon (no manual container/rect math needed).
+    // Two-click workflow: first click on the map drops point A, second
+    // click drops point B and finalises the measurement (great-circle
+    // distance in NM + initial true bearing A→B). Rewritten from scratch
+    // for clarity: one style constant, one redraw function reused for both
+    // creation and later edits, and a toggle that can't double-bind its
+    // map click listener.
     let showmeasurePanel = false;
-    let measureActive    = false;
-    let measureLayer     = null;
-    let measureStart: { lat: number, lon: number, marker: any } | null = null;
+    let measureActive        = false;
+    let measureLayer         = null;
+    let measureListenerBound = false; // guards toggleMeasure() against binding map 'click' twice
+    let pendingPoint: { lat: number, lon: number, marker: any } | null = null;
+
     let measurements: {
         id: number, distNM: number, brg: number,
         startLat: number, startLon: number, endLat: number, endLon: number,
         locked: 'start' | 'end', editing: boolean, layers: any[]
     }[] = [];
 
-    function haversineNM(lat1: number, lon1: number, lat2: number, lon2: number): number {
-        const R = 3440.065;
-        const toRad = (d: number) => d * Math.PI / 180;
-        const dLat = toRad(lat2 - lat1);
-        const dLon = toRad(lon2 - lon1);
+    const MEASURE_POINT_STYLE = { radius: 5, color: '#f1c40f', fillColor: '#f1c40f', fillOpacity: 1, weight: 2 };
+    const MEASURE_LINE_STYLE  = { color: '#f1c40f', weight: 2, dashArray: '6,4' };
+    const EARTH_RADIUS_NM     = 3440.065;
+
+    const degToRad = (d: number) => d * Math.PI / 180;
+    const radToDeg = (r: number) => r * 180 / Math.PI;
+
+    function greatCircleDistanceNM(lat1: number, lon1: number, lat2: number, lon2: number): number {
+        const dLat = degToRad(lat2 - lat1);
+        const dLon = degToRad(lon2 - lon1);
         const a = Math.sin(dLat / 2) ** 2 +
-                  Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                  Math.cos(degToRad(lat1)) * Math.cos(degToRad(lat2)) * Math.sin(dLon / 2) ** 2;
+        return EARTH_RADIUS_NM * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     }
 
-    function initialBearing(lat1: number, lon1: number, lat2: number, lon2: number): number {
-        const toRad = (d: number) => d * Math.PI / 180;
-        const toDeg = (r: number) => r * 180 / Math.PI;
-        const y = Math.sin(toRad(lon2 - lon1)) * Math.cos(toRad(lat2));
-        const x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) -
-                  Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(toRad(lon2 - lon1));
-        return (toDeg(Math.atan2(y, x)) + 360) % 360;
+    function trueBearing(lat1: number, lon1: number, lat2: number, lon2: number): number {
+        const y = Math.sin(degToRad(lon2 - lon1)) * Math.cos(degToRad(lat2));
+        const x = Math.cos(degToRad(lat1)) * Math.sin(degToRad(lat2)) -
+                  Math.sin(degToRad(lat1)) * Math.cos(degToRad(lat2)) * Math.cos(degToRad(lon2 - lon1));
+        return (radToDeg(Math.atan2(y, x)) + 360) % 360;
     }
 
-    function destinationPoint(lat1: number, lon1: number, distNM: number, bearingDeg: number): { lat: number, lon: number } {
-        const R = 3440.065;
-        const toRad = (d: number) => d * Math.PI / 180;
-        const toDeg = (r: number) => r * 180 / Math.PI;
-        const delta = distNM / R;
-        const theta = toRad(bearingDeg);
-        const phi1 = toRad(lat1), lambda1 = toRad(lon1);
+    // Given a start point, a distance and a bearing, returns the resulting point.
+    function projectPoint(lat1: number, lon1: number, distNM: number, bearingDeg: number): { lat: number, lon: number } {
+        const delta  = distNM / EARTH_RADIUS_NM;
+        const theta  = degToRad(bearingDeg);
+        const phi1   = degToRad(lat1), lambda1 = degToRad(lon1);
 
         const phi2 = Math.asin(Math.sin(phi1) * Math.cos(delta) + Math.cos(phi1) * Math.sin(delta) * Math.cos(theta));
         const lambda2 = lambda1 + Math.atan2(
@@ -1996,126 +2022,114 @@
             Math.cos(delta) - Math.sin(phi1) * Math.sin(phi2)
         );
 
-        return { lat: toDeg(phi2), lon: ((toDeg(lambda2) + 540) % 360) - 180 };
+        return { lat: radToDeg(phi2), lon: ((radToDeg(lambda2) + 540) % 360) - 180 };
     }
 
-    function drawMeasurement(m: any) {
+    // (Re)draws one measurement's two point markers, connecting line and
+    // distance/bearing label. Used both right after creation and whenever
+    // the person edits its coordinates or distance/bearing.
+    function redrawMeasurement(m: any): void {
         m.layers.forEach((l: any) => measureLayer.removeLayer(l));
-        m.layers = [];
 
-const startMarker = L.circleMarker([m.startLat, m.startLon], {
-    radius: 5,
-    color: '#f1c40f',
-    fillColor: '#f1c40f',
-    fillOpacity: 1,
-    weight: 2
-}).addTo(measureLayer).bindTooltip('A', { permanent: false });
-
-const endMarker = L.circleMarker([m.endLat, m.endLon], {
-    radius: 5,
-    color: '#f1c40f',
-    fillColor: '#f1c40f',
-    fillOpacity: 1,
-    weight: 2
-}).addTo(measureLayer).bindTooltip('B', { permanent: false });
-
-        const line = L.polyline(
-            [[m.startLat, m.startLon], [m.endLat, m.endLon]],
-            { color: '#f1c40f', weight: 2, dashArray: '6,4' }
-        ).addTo(measureLayer);
-
-        const midLat = (m.startLat + m.endLat) / 2;
-        const midLon = (m.startLon + m.endLon) / 2;
-        const label = L.marker([midLat, midLon], {
-            icon: L.divIcon({
+        const a = L.circleMarker([m.startLat, m.startLon], MEASURE_POINT_STYLE)
+            .addTo(measureLayer).bindTooltip('A', { permanent: false });
+        const b = L.circleMarker([m.endLat, m.endLon], MEASURE_POINT_STYLE)
+            .addTo(measureLayer).bindTooltip('B', { permanent: false });
+        const line = L.polyline([[m.startLat, m.startLon], [m.endLat, m.endLon]], MEASURE_LINE_STYLE)
+            .addTo(measureLayer);
+        const label = L.marker(
+            [(m.startLat + m.endLat) / 2, (m.startLon + m.endLon) / 2],
+            { icon: L.divIcon({
                 className: '',
                 html: `<div class="nt-measure-label">${m.distNM.toFixed(2)} NM / ${m.brg.toFixed(0)}°</div>`,
                 iconSize: [0, 0]
-            })
-        }).addTo(measureLayer);
+            }) }
+        ).addTo(measureLayer);
 
-        m.layers = [startMarker, endMarker, line, label];
+        m.layers = [a, b, line, label];
     }
 
-    // Single Leaflet map click handler: first click sets the start point,
-    // second click sets the end point and finalises the measurement.
-    function onMapClickForMeasure(e: { latlng: { lat: number, lng: number } }) {
+    function clearPendingPoint(): void {
+        if (pendingPoint) {
+            measureLayer.removeLayer(pendingPoint.marker);
+            pendingPoint = null;
+        }
+    }
+
+    function createMeasurement(a: { lat: number, lon: number }, b: { lat: number, lon: number }): void {
+        const m = {
+            id: Date.now() + Math.random(),
+            distNM: greatCircleDistanceNM(a.lat, a.lon, b.lat, b.lon),
+            brg:    trueBearing(a.lat, a.lon, b.lat, b.lon),
+            startLat: a.lat, startLon: a.lon,
+            endLat: b.lat, endLon: b.lon,
+            locked: 'start' as const, editing: false, layers: [] as any[]
+        };
+        redrawMeasurement(m);
+        measurements = [...measurements, m];
+    }
+
+    // First click on the map drops point A, second click drops point B and
+    // finalises the measurement — no double-click, no manual DOM/rect math.
+    function onMapClickForMeasure(e: { latlng: { lat: number, lng: number } }): void {
         const { lat, lng } = e.latlng;
 
-        if (!measureStart) {
-            const marker = L.circleMarker([lat, lng], {
-                radius: 5, color: '#f1c40f', fillColor: '#f1c40f', fillOpacity: 1, weight: 2
-            }).addTo(measureLayer);
-            measureStart = { lat, lon: lng, marker };
+        if (!pendingPoint) {
+            const marker = L.circleMarker([lat, lng], MEASURE_POINT_STYLE).addTo(measureLayer);
+            pendingPoint = { lat, lon: lng, marker };
             return;
         }
 
-        measureLayer.removeLayer(measureStart.marker);
-
-        const distNM = haversineNM(measureStart.lat, measureStart.lon, lat, lng);
-        const brg    = initialBearing(measureStart.lat, measureStart.lon, lat, lng);
-
-        const m = {
-            id: Date.now() + Math.random(),
-            distNM, brg,
-            startLat: measureStart.lat, startLon: measureStart.lon,
-            endLat: lat, endLon: lng,
-            locked: 'start' as const, editing: false, layers: []
-        };
-        drawMeasurement(m);
-
-        measurements = [...measurements, m];
-        measureStart = null; // ready for the next pair of clicks
+        const a = { lat: pendingPoint.lat, lon: pendingPoint.lon };
+        clearPendingPoint();
+        createMeasurement(a, { lat, lon: lng });
     }
 
-    function onMeasureLatLonEdit(m: any) {
-        m.distNM = haversineNM(m.startLat, m.startLon, m.endLat, m.endLon);
-        m.brg    = initialBearing(m.startLat, m.startLon, m.endLat, m.endLon);
-        drawMeasurement(m);
-        measurements = [...measurements];
-    }
-
-    function onMeasureDistBrgEdit(m: any) {
-        if (m.locked === 'start') {
-            const dest = destinationPoint(m.startLat, m.startLon, m.distNM, m.brg);
-            m.endLat = dest.lat; m.endLon = dest.lon;
-        } else {
-            const backBrg = (m.brg + 180) % 360;
-            const dest = destinationPoint(m.endLat, m.endLon, m.distNM, backBrg);
-            m.startLat = dest.lat; m.startLon = dest.lon;
-        }
-        drawMeasurement(m);
-        measurements = [...measurements];
-    }
-
-    function toggleMeasure() {
-        if (measureActive) {
+    function toggleMeasure(): void {
+        if (measureActive && !measureListenerBound) {
             if (map.doubleClickZoom) map.doubleClickZoom.disable();
             map.on('click', onMapClickForMeasure);
-        } else {
+            measureListenerBound = true;
+        } else if (!measureActive && measureListenerBound) {
             if (map.doubleClickZoom) map.doubleClickZoom.enable();
             map.off('click', onMapClickForMeasure);
-            if (measureStart) {
-                measureStart.marker.remove();
-                measureStart = null;
-            }
+            measureListenerBound = false;
+            clearPendingPoint();
         }
     }
 
-function removeMeasurement(id: number) {
-    const m = measurements.find(x => x.id === id);
-    if (m) m.layers.forEach((l: any) => measureLayer.removeLayer(l));
-    measurements = measurements.filter(x => x.id !== id);
-}
-
-function clearAllMeasurements() {
-    measurements.forEach(m => m.layers.forEach((l: any) => measureLayer.removeLayer(l)));
-    measurements = [];
-    if (measureStart) {
-        measureLayer.removeLayer(measureStart.marker);
-        measureStart = null;
+    function onMeasureLatLonEdit(m: any): void {
+        m.distNM = greatCircleDistanceNM(m.startLat, m.startLon, m.endLat, m.endLon);
+        m.brg    = trueBearing(m.startLat, m.startLon, m.endLat, m.endLon);
+        redrawMeasurement(m);
+        measurements = [...measurements];
     }
-}
+
+    function onMeasureDistBrgEdit(m: any): void {
+        // The locked point stays put; the OTHER point gets recomputed from
+        // the edited distance/bearing.
+        if (m.locked === 'start') {
+            const dest = projectPoint(m.startLat, m.startLon, m.distNM, m.brg);
+            m.endLat = dest.lat; m.endLon = dest.lon;
+        } else {
+            const dest = projectPoint(m.endLat, m.endLon, m.distNM, (m.brg + 180) % 360);
+            m.startLat = dest.lat; m.startLon = dest.lon;
+        }
+        redrawMeasurement(m);
+        measurements = [...measurements];
+    }
+
+    function removeMeasurement(id: number): void {
+        const m = measurements.find(x => x.id === id);
+        if (m) m.layers.forEach((l: any) => measureLayer.removeLayer(l));
+        measurements = measurements.filter(x => x.id !== id);
+    }
+
+    function clearAllMeasurements(): void {
+        measurements.forEach(m => m.layers.forEach((l: any) => measureLayer.removeLayer(l)));
+        measurements = [];
+        clearPendingPoint();
+    }
 
     // ─── WEATHERSCORE (placeholder) ─────────────────────────────
     let showWSPanel = false;
