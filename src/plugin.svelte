@@ -1,7 +1,7 @@
 <div class="nt-panel">
     <div class="nt-header">
         <span class="nt-header__icon">⛵</span>
-        <span class="nt-header__title">Nav tool</span>
+        <span class="nt-header__title">Nav tools</span>
         <div class="nt-header-actions">
             <button class="nt-btn-minimize" on:click={toggleMinimize} title="Minimize/Expand">
                 {isMinimized ? '🔼' : '🔽'}
@@ -2031,13 +2031,23 @@
     function redrawMeasurement(m: any): void {
         m.layers.forEach((l: any) => measureLayer.removeLayer(l));
 
-        const a = L.circleMarker([m.startLat, m.startLon], MEASURE_POINT_STYLE)
-            .addTo(measureLayer).bindTooltip('A', { permanent: false });
-        const b = L.circleMarker([m.endLat, m.endLon], MEASURE_POINT_STYLE)
-            .addTo(measureLayer).bindTooltip('B', { permanent: false });
+        // Note: circleMarker doesn't support .bindTooltip() under Windy's
+        // leaflet-gl renderer ("This layer type does not support tooltips"),
+        // so the A/B labels are separate divIcon markers instead — same
+        // technique as the distance/bearing label below, which does work.
+        const aPoint = L.circleMarker([m.startLat, m.startLon], MEASURE_POINT_STYLE).addTo(measureLayer);
+        const aLabel = L.marker([m.startLat, m.startLon], {
+            icon: L.divIcon({ className: '', html: `<div class="nt-measure-ab-label">A</div>`, iconSize: [0, 0] })
+        }).addTo(measureLayer);
+
+        const bPoint = L.circleMarker([m.endLat, m.endLon], MEASURE_POINT_STYLE).addTo(measureLayer);
+        const bLabel = L.marker([m.endLat, m.endLon], {
+            icon: L.divIcon({ className: '', html: `<div class="nt-measure-ab-label">B</div>`, iconSize: [0, 0] })
+        }).addTo(measureLayer);
+
         const line = L.polyline([[m.startLat, m.startLon], [m.endLat, m.endLon]], MEASURE_LINE_STYLE)
             .addTo(measureLayer);
-        const label = L.marker(
+        const distLabel = L.marker(
             [(m.startLat + m.endLat) / 2, (m.startLon + m.endLon) / 2],
             { icon: L.divIcon({
                 className: '',
@@ -2046,7 +2056,7 @@
             }) }
         ).addTo(measureLayer);
 
-        m.layers = [a, b, line, label];
+        m.layers = [aPoint, aLabel, bPoint, bLabel, line, distLabel];
     }
 
     function clearPendingPoint(): void {
@@ -2662,6 +2672,17 @@
         font-weight: bold;
         white-space: nowrap;
         transform: translate(-50%, -50%);
+    }
+    :global(.nt-measure-ab-label) {
+        background: rgba(46,46,46,0.92);
+        color: #f1c40f;
+        border: 1px solid #f1c40f;
+        border-radius: 3px;
+        padding: 1px 4px;
+        font-size: 10px;
+        font-weight: bold;
+        white-space: nowrap;
+        transform: translate(-50%, -170%);
     }
 
     :global(.nt-pop) {
