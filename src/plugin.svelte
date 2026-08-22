@@ -1,4 +1,3 @@
-
 <div class="nt-mini">
     <div class="nt-mini-content">
         ⛵ <strong>Nav tools</strong>
@@ -382,11 +381,23 @@
     let fileInput;
     let isMinimized = false;
 
+    // Must match the "name" field declared in this plugin's
+    // windy-plugin-content.json — that's the identifier Windy passes to
+    // 'pluginOpened' / 'pluginClosed' broadcasts. ⚠️ Adjust this string if
+    // your plugin's real ident differs (check windy-plugin-content.json).
+    const PLUGIN_IDENT = 'windy-plugin-nav-tools';
+
     // Whether the whole floating "Nav tools" panel is shown at all.
     // Toggled either by the header's close crosses (left/right — both call
-    // closePlugin, a plain local state flip) or by the small "Show/Hide"
+    // closePlugin, a plain local state flip), by the small "Show/Hide"
     // button on the .nt-mini widget that Windy keeps rendered in its own
-    // right-side plugin slot, which lets the user bring the panel back.
+    // right-side plugin slot, OR by Windy's own native "✕" that it draws
+    // around the plugin itself. That native cross does NOT call anything of
+    // ours directly — it just fires the 'pluginClosed' broadcast with this
+    // plugin's ident (exactly the mechanism this plugin's onPluginClosed/
+    // onPluginOpened watch for the ship-data plugin's own 'progress-bar').
+    // Without listening for it here, clicking Windy's native cross leaves
+    // our panel dangling on screen even though Windy thinks it's closed.
     let panelVisible = true;
 
     function closePlugin(): void {
@@ -395,6 +406,14 @@
 
     function togglePanelVisible(): void {
         panelVisible = !panelVisible;
+    }
+
+    // React to Windy's own native plugin open/close chrome (not ours).
+    function onNativePluginClosed(name: string): void {
+        if (name === PLUGIN_IDENT) panelVisible = false;
+    }
+    function onNativePluginOpened(name: string): void {
+        if (name === PLUGIN_IDENT) panelVisible = true;
     }
 
     let windyTimeUTC = '';
@@ -2188,6 +2207,10 @@
             map.on('moveend', onViewChange);
         }
         onViewChange();
+
+        // Native Windy close/reopen chrome for this plugin.
+        bcast.on('pluginClosed', onNativePluginClosed);
+        bcast.on('pluginOpened', onNativePluginOpened);
     });
 
     onDestroy(() => {
@@ -2206,6 +2229,9 @@
         }
         map.off('click', onMapClickForMeasure);
         if (measureActive && map.doubleClickZoom) map.doubleClickZoom.enable();
+
+        bcast.off('pluginClosed', onNativePluginClosed);
+        bcast.off('pluginOpened', onNativePluginOpened);
     });
 
     export const onopen = () => {};
