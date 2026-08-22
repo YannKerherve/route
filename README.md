@@ -144,7 +144,7 @@ L'objectif est de fournir une interface simple permettant de passer rapidement d
 * [x] Création de points manuels
 * [x] Mesure des distances
 * [x] Mesure des azimuts
-* [ ] Publication du plugin sur Windy
+* [x] Publication du plugin sur Windy
 * [ ] Comparaison automatique des modèles météo
 * [ ] Calcul du **WeatherScore**
 * [ ] Sélection automatique du meilleur modèle météo
