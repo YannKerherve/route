@@ -2201,21 +2201,37 @@
     });
 
     onDestroy(() => {
-        unsubTime?.();
-        routeLayers.forEach(l => l.remove());
-        boatLayers.forEach(l => l.remove());
-        barbLayers.forEach(l => l.remove());
-        pointLayers.forEach(l => l.remove());
-        tssLayer?.remove();
-        seamarkLayer?.remove();
-        measureLayer?.remove();
+        // Defensive on purpose: this runs as part of Windy's own native
+        // close (onclosed → unmount → $destroy), and Svelte's run_all()
+        // over on_destroy callbacks does NOT catch exceptions — one throw
+        // here aborts the whole teardown loop and can leave the panel
+        // stuck on screen with a console error (that's exactly what
+        // happened when 'map.off('click', ...)' below was left unguarded
+        // while the zoomend/moveend calls above it were guarded — an
+        // inconsistency, not a difference from how ship-position behaves).
+        try {
+            if (typeof unsubTime === 'function') unsubTime();
 
-        if (typeof map.off === 'function') {
-            map.off('zoomend', onViewChange);
-            map.off('moveend', onViewChange);
+            routeLayers.forEach(l => l?.remove?.());
+            boatLayers.forEach(l => l?.remove?.());
+            barbLayers.forEach(l => l?.remove?.());
+            pointLayers.forEach(l => l?.remove?.());
+            tssLayer?.remove?.();
+            seamarkLayer?.remove?.();
+            measureLayer?.remove?.();
+
+            if (typeof map?.off === 'function') {
+                map.off('zoomend', onViewChange);
+                map.off('moveend', onViewChange);
+                map.off('click', onMapClickForMeasure);
+            }
+            if (measureActive && map?.doubleClickZoom?.enable) {
+                map.doubleClickZoom.enable();
+            }
+        } catch (e) {
+            // Never let cleanup break Windy's own close sequence.
+            console.warn('[nav-tools] cleanup error on destroy:', e);
         }
-        map.off('click', onMapClickForMeasure);
-        if (measureActive && map.doubleClickZoom) map.doubleClickZoom.enable();
     });
 
     export const onopen = () => {};
