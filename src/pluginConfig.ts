@@ -1,7 +1,7 @@
 import type { ExternalPluginConfig } from '@windy/interfaces';
 
 const config: ExternalPluginConfig = {
-    name: 'nav-tools',
+    name: 'windy-plugin-route',
     version: '0.3.9',
     icon: '🗺️',
     title: 'Nav Tools',
