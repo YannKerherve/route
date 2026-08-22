@@ -2,7 +2,7 @@ import type { ExternalPluginConfig } from '@windy/interfaces';
 
 const config: ExternalPluginConfig = {
     name: 'nav-tools',
-    version: '0.3.8',
+    version: '0.3.9',
     icon: '🗺️',
     title: 'Nav Tools',
     description: 'Display worldwide nautical charts, Measure distances and bearings, Upload and display routes, Add manual waypoints and points',
