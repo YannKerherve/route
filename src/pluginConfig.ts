@@ -5,7 +5,7 @@ const config: ExternalPluginConfig = {
     version: '0.3.8',
     icon: '🗺️',
     title: 'Nav Tools',
-    description: Display worldwide nautical charts, Measure distances and bearings, Upload and display routes, Add manual waypoints and points',
+    description: 'Display worldwide nautical charts, Measure distances and bearings, Upload and display routes, Add manual waypoints and points',
     author: 'Yann Kerherve (ENSM)',
     repository: 'https://github.com/YannKerherve/route',
     desktopUI: 'embedded',
