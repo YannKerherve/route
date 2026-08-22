@@ -1,8 +1,3 @@
-<!-- WIDGET EMBEDDED (droite) — le petit résumé toujours affiché par Windy
-     dans son propre encart droit des plugins. Ce n'est PAS un élément
-     position:fixed placé "à la main" : c'est Windy qui le positionne,
-     exactement comme pour les autres plugins (voir Ship Data). Le bouton
-     Show/Hide bascule uniquement l'état local panelVisible. -->
 <div class="nt-mini">
     <div class="nt-mini-content">
         ⛵ <strong>Nav tools</strong>
