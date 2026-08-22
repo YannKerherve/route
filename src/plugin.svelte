@@ -1,12 +1,29 @@
+<!-- Always-visible tab on the right edge of the screen: lets the user
+     show/hide the floating "Nav tools" panel (which itself sits bottom-left),
+     including bringing it back after it was closed via one of the header
+     crosses. -->
+<button
+    class="nt-side-tab"
+    class:nt-side-tab--panel-hidden={!panelVisible}
+    on:click={togglePanelVisible}
+    title={panelVisible ? 'Hide Nav tools' : 'Show Nav tools'}
+>
+    <span class="nt-side-tab__icon">⛵</span>
+    <span class="nt-side-tab__label">Nav tools</span>
+    <span class="nt-side-tab__chevron">{panelVisible ? '▶' : '◀'}</span>
+</button>
+
+{#if panelVisible}
 <div class="nt-panel">
     <div class="nt-header">
+        <button class="nt-header__close nt-header__close--left" on:click={closePlugin} title="Close">✕</button>
         <span class="nt-header__icon">⛵</span>
         <span class="nt-header__title">Nav tools</span>
         <div class="nt-header-actions">
             <button class="nt-btn-minimize" on:click={toggleMinimize} title="Minimize/Expand">
                 {isMinimized ? '🔼' : '🔽'}
             </button>
-            <button class="nt-header__close" on:click={() => bcast.emit('rqstOpen', 'menu')}>✕</button>
+            <button class="nt-header__close" on:click={closePlugin} title="Close">✕</button>
         </div>
     </div>
 
@@ -205,22 +222,10 @@
     </div>
 
     <!-- ═══════════════════════════════════════════════
-         TSS
+         TSS — permanently hidden from the UI for the public/Windy
+         release (kept in the code below, unused, in case it's
+         re-enabled later). showTss stays false so nothing is drawn.
     ═══════════════════════════════════════════════ -->
-    <div class="nt-section">
-        <div class="nt-section-header" on:click={() => showTssPanel = !showTssPanel}>
-            <span>🚢 TSS</span>
-            <span>{showTssPanel ? '▲' : '▼'}</span>
-        </div>
-        {#if showTssPanel}
-            <div style="padding:6px 4px">
-                <label class="nt-checkbox">
-                    <input type="checkbox" bind:checked={showTss} on:change={toggleTss} />
-                    <span>Show Traffic Separation Schemes (Ouessant + Casquets)</span>
-                </label>
-            </div>
-        {/if}
-    </div>
 
     <!-- ═══════════════════════════════════════════════
          OPENSEAMAP (ECDIS-style seamarks, auto-loaded tiles)
@@ -235,6 +240,10 @@
                 {#if TILES_BASE_URL_IS_PLACEHOLDER}
                     <div class="nt-error">⚠️ TILES_BASE_URL is still the placeholder (YOUR_GITHUB_USER/YOUR_REPO) — edit it near the top of the OpenSeaMap section in plugin.svelte, then rebuild.</div>
                 {/if}
+
+                <div class="nt-attribution">
+                    🗺️ Seamark data: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>, published under the <a href="https://opendatacommons.org/licenses/odbl/" target="_blank" rel="noopener">ODbL licence</a>. Rendering/styling based on the <a href="https://www.openseamap.org" target="_blank" rel="noopener">OpenSeaMap</a> project. Beacon photos (French buoyage only): © <a href="https://data.shom.fr" target="_blank" rel="noopener">SHOM / DGAMPA</a>.
+                </div>
 
                 <label class="nt-checkbox">
                     <input type="checkbox" bind:checked={seamarksVisible} on:change={renderSeamarks} />
@@ -361,6 +370,7 @@
     {/if}
 
 </div>
+{/if}
 <script lang="ts">
     import bcast from "@windy/broadcast";
     import { onDestroy, onMount } from 'svelte';
@@ -373,6 +383,20 @@
     let error = "";
     let fileInput;
     let isMinimized = false;
+
+    // Whether the whole floating "Nav tools" panel is shown at all.
+    // Toggled either by the header's close crosses (left/right — both call
+    // closePlugin) or by the small always-on tab pinned to the right edge
+    // of the screen, which lets the user bring the panel back afterwards.
+    let panelVisible = true;
+
+    function closePlugin(): void {
+        panelVisible = false;
+    }
+
+    function togglePanelVisible(): void {
+        panelVisible = !panelVisible;
+    }
 
     let windyTimeUTC = '';
     let windyTimeLocal = '';
@@ -1594,7 +1618,8 @@
 
         const shomId = findShomId(props);
         if (shomId) {
-            html += `<img class="nt-pop-img" src="${SHOM_PHOTO_BASE_URL}${shomId}.jpg" alt="${title}" loading="lazy" onerror="this.remove()" />`;
+            html += `<img class="nt-pop-img" src="${SHOM_PHOTO_BASE_URL}${shomId}.jpg" alt="${title}" loading="lazy" onerror="this.parentElement.querySelector('.nt-pop-photo-credit')?.remove(); this.remove()" />`;
+            html += `<div class="nt-pop-photo-credit">📷 Photo : © SHOM / DGAMPA — <a href="https://data.shom.fr" target="_blank" rel="noopener">data.shom.fr</a></div>`;
         }
 
         html += `<div class="nt-pop-title">${title}</div>`;
@@ -1643,7 +1668,8 @@
             push('Position', `${formatDMS(lat, 'NS')} — ${formatDMS(lon, 'EW')}`);
         }
 
-        html += rows.join('') + '</div>';
+        html += rows.join('') + `<div class="nt-pop-row nt-pop-attribution">Données seamarks : © contributeurs OpenStreetMap (ODbL) via OpenSeaMap</div>`;
+        html += '</div>';
         return html;
     }
 
@@ -2255,6 +2281,55 @@
         transition: all 0.2s;
         &:hover { transform: scale(1.1); }
     }
+    .nt-header__close--left {
+        order: -1;
+        margin-right: 4px;
+    }
+
+    // Tab pinned to the right edge of the screen: always visible, even
+    // when the panel itself is hidden, so the plugin can be closed and
+    // reopened without going through Windy's own menu.
+    .nt-side-tab {
+        position: fixed;
+        top: 50%;
+        right: 0;
+        transform: translateY(-50%);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(60, 60, 60, 0.97);
+        color: white;
+        border: 1px solid var(--nt-border, #565656);
+        border-right: none;
+        border-radius: 8px 0 0 8px;
+        padding: 8px 10px;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: bold;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+        z-index: 1000;
+        transition: background 0.2s;
+        &:hover { background: rgba(52, 152, 219, 0.35); }
+        &--panel-hidden { background: rgba(52, 152, 219, 0.25); }
+    }
+    .nt-side-tab__icon { font-size: 14px; }
+    .nt-side-tab__chevron { font-size: 10px; opacity: 0.8; }
+
+    .nt-attribution {
+        font-size: 10px;
+        line-height: 1.4;
+        color: #bbb;
+        background: var(--nt-bg-dark, #2e2e2e);
+        padding: 6px 8px;
+        border-radius: 6px;
+        margin-bottom: 8px;
+
+        a {
+            color: #3498db;
+            text-decoration: none;
+            &:hover { text-decoration: underline; }
+        }
+    }
 
     .nt-drop {
         border: 2px dashed var(--nt-bg-lighter);
@@ -2704,5 +2779,18 @@
     }
     :global(.nt-pop-row) {
         margin: 2px 0;
+    }
+    :global(.nt-pop-photo-credit) {
+        font-size: 9px;
+        font-style: italic;
+        color: #888;
+        margin: -4px 0 6px;
+    }
+    :global(.nt-pop-attribution) {
+        font-size: 9px;
+        color: #999;
+        margin-top: 6px;
+        padding-top: 4px;
+        border-top: 1px solid rgba(255,255,255,0.1);
     }
 </style>
