@@ -1,17 +1,19 @@
-<!-- Always-visible tab on the right edge of the screen: lets the user
-     show/hide the floating "Nav tools" panel (which itself sits bottom-left),
-     including bringing it back after it was closed via one of the header
-     crosses. -->
-<button
-    class="nt-side-tab"
-    class:nt-side-tab--panel-hidden={!panelVisible}
-    on:click={togglePanelVisible}
-    title={panelVisible ? 'Hide Nav tools' : 'Show Nav tools'}
->
-    <span class="nt-side-tab__icon">⛵</span>
-    <span class="nt-side-tab__label">Nav tools</span>
-    <span class="nt-side-tab__chevron">{panelVisible ? '▶' : '◀'}</span>
-</button>
+<!-- WIDGET EMBEDDED (droite) — le petit résumé toujours affiché par Windy
+     dans son propre encart droit des plugins. Ce n'est PAS un élément
+     position:fixed placé "à la main" : c'est Windy qui le positionne,
+     exactement comme pour les autres plugins (voir Ship Data). Le bouton
+     Show/Hide bascule uniquement l'état local panelVisible. -->
+<div class="nt-mini">
+    <div class="nt-mini-content">
+        ⛵ <strong>Nav tools</strong>
+        {#if routes.length > 0}
+            · {routes.length} route{routes.length > 1 ? 's' : ''}
+        {/if}
+    </div>
+    <div class="button size-s" on:click={togglePanelVisible}>
+        {panelVisible ? 'Hide' : 'Show'}
+    </div>
+</div>
 
 {#if panelVisible}
 <div class="nt-panel">
@@ -386,8 +388,9 @@
 
     // Whether the whole floating "Nav tools" panel is shown at all.
     // Toggled either by the header's close crosses (left/right — both call
-    // closePlugin) or by the small always-on tab pinned to the right edge
-    // of the screen, which lets the user bring the panel back afterwards.
+    // closePlugin, a plain local state flip) or by the small "Show/Hide"
+    // button on the .nt-mini widget that Windy keeps rendered in its own
+    // right-side plugin slot, which lets the user bring the panel back.
     let panelVisible = true;
 
     function closePlugin(): void {
@@ -2286,34 +2289,30 @@
         margin-right: 4px;
     }
 
-    // Tab pinned to the right edge of the screen: always visible, even
-    // when the panel itself is hidden, so the plugin can be closed and
-    // reopened without going through Windy's own menu.
-    .nt-side-tab {
-        position: fixed;
-        top: 50%;
-        right: 0;
-        transform: translateY(-50%);
+    // Small widget embedded by Windy in its own right-side plugin slot —
+    // same pattern as the Ship Data plugin's .plugin-mini. No position:fixed
+    // here: Windy places this element itself, so it must stay a normal
+    // flow element, not something we pin to the screen ourselves.
+    .nt-mini {
         display: flex;
         align-items: center;
-        gap: 6px;
-        background: rgba(60, 60, 60, 0.97);
+        justify-content: space-between;
+        gap: 8px;
         color: white;
-        border: 1px solid var(--nt-border, #565656);
-        border-right: none;
-        border-radius: 8px 0 0 8px;
-        padding: 8px 10px;
-        cursor: pointer;
-        font-size: 12px;
-        font-weight: bold;
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-        z-index: 1000;
-        transition: background 0.2s;
-        &:hover { background: rgba(52, 152, 219, 0.35); }
-        &--panel-hidden { background: rgba(52, 152, 219, 0.25); }
+        padding: 4px 2px;
+        border-radius: 8px;
+        font-size: 13px;
+        line-height: 1.2;
+        margin: 2px 0;
+        width: 100%;
+        box-sizing: border-box;
     }
-    .nt-side-tab__icon { font-size: 14px; }
-    .nt-side-tab__chevron { font-size: 10px; opacity: 0.8; }
+    .nt-mini-content {
+        flex: 1;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+    }
 
     .nt-attribution {
         font-size: 10px;
