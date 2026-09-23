@@ -486,6 +486,33 @@
     }
 
     // -------------------------------------------------------------------
+    // ANTIMERIDIAN (180° DATE LINE) FIX
+    // -------------------------------------------------------------------
+    // Source files store longitude clamped to [-180, 180], so a route
+    // crossing the date line jumps straight from ~+180 to ~-180 (or vice
+    // versa) between two consecutive waypoints. Drawn as-is, that reads as
+    // a ~350° jump: Leaflet's polyline/bounds/interpolation all just
+    // connect the two raw points with a straight line, which draws all
+    // the way across the map instead of the short hop across the line.
+    //
+    // Fix: once per route, walk the waypoints in order and add/subtract
+    // 360° whenever a step would exceed 180°, so longitude becomes a
+    // continuous (unwrapped) sequence — e.g. ...,178, 179, -180 becomes
+    // ...,178, 179, 180. Leaflet is fine with longitudes outside
+    // [-180, 180]; it keeps panning the world rather than wrapping, so a
+    // continuous polyline/marker position there renders correctly and
+    // fitBounds() computes the right box. This also makes the existing
+    // plain linear interpolation of lon in getInterpolatedPosition()
+    // correct, since there is no more wraparound to account for.
+    function unwrapLongitudes(waypoints: any[]): void {
+        for (let i = 1; i < waypoints.length; i++) {
+            let diff = waypoints[i].lon - waypoints[i - 1].lon;
+            while (diff > 180)  { waypoints[i].lon -= 360; diff = waypoints[i].lon - waypoints[i - 1].lon; }
+            while (diff < -180) { waypoints[i].lon += 360; diff = waypoints[i].lon - waypoints[i - 1].lon; }
+        }
+    }
+
+    // -------------------------------------------------------------------
     // HEADER TIMEZONE DETECTION
     // -------------------------------------------------------------------
 
@@ -599,6 +626,7 @@
         }
 
         fixTimestampRollover(waypoints);
+        unwrapLongitudes(waypoints);
         return waypoints;
     }
 
@@ -641,6 +669,7 @@
         }
 
         fixTimestampRollover(waypoints);
+        unwrapLongitudes(waypoints);
         return waypoints;
     }
 
@@ -735,6 +764,7 @@
         }
 
         fixTimestampRollover(waypoints);
+        unwrapLongitudes(waypoints);
         return waypoints;
     }
 
@@ -786,6 +816,12 @@
         }
 
         waypoints.sort((a, b) => a.time - b.time);
+
+        // Unwrap first: the route below (GC5 @ -180°, GC6 @ +170°...) is a
+        // real-world example of a date-line crossing, and doing this before
+        // the COG loop keeps things simple — trueBearing() is unaffected
+        // either way since sin/cos of (lon2 - lon1) are 360°-periodic.
+        unwrapLongitudes(waypoints);
 
         for (let i = 0; i < waypoints.length; i++) {
             if (i < waypoints.length - 1) {
