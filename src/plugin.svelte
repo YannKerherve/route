@@ -32,9 +32,9 @@
         on:drop|preventDefault={handleDrop}
         on:click={() => fileInput.click()}
     >
-        <span>📂 Load a CSV / XLSX file</span>
-        <span class="nt-hint">Drag & drop or click (Tactics / SimSail / Adrena)</span>
-        <input bind:this={fileInput} type="file" accept=".csv,.xlsx,.xls" multiple on:change={handleFileChange} style="display: none;" />
+        <span>📂 Load a CSV / XLSX / BVS file</span>
+        <span class="nt-hint">Drag & drop or click (Tactics / SimSail / Adrena / BVS)</span>
+        <input bind:this={fileInput} type="file" accept=".csv,.xlsx,.xls,.bvs" multiple on:change={handleFileChange} style="display: none;" />
     </div>
 
     {#if !isMinimized}
@@ -120,13 +120,14 @@
                     bind:value={route.format}
                     on:change={() => reloadRoute(idx)}
                     class="nt-select-format"
-                    disabled={route.format === 'adrena'}
-                    title={route.format === 'adrena' ? 'Format fixed (Adrena Excel file)' : ''}
+                    disabled={route.format === 'adrena' || route.format === 'bvs'}
+                    title={(route.format === 'adrena' || route.format === 'bvs') ? 'Format fixed (Adrena Excel / BVS XML file)' : ''}
                 >
                     <option value="auto">Auto</option>
                     <option value="tactics">Tactics</option>
                     <option value="simsail">SimSail</option>
                     <option value="adrena">Adrena</option>
+                    <option value="bvs">BVS</option>
                 </select>
             </div>
 
@@ -737,6 +738,72 @@
         return waypoints;
     }
 
+    // BVS ("Voyage" XML export — StormGeo/BonVoyage-style routing files, as
+    // produced by TrackInfo/Position elements). Unlike the CSV/XLSX formats
+    // above, coordinates are already plain decimal degrees (Lat/Lon
+    // attributes) and every Date carries its own explicit UTC offset
+    // (e.g. "2026-09-17T21:12:00-00:00"), so there is no ambiguous local
+    // time to detect or shift here — the CSV timezone controls in the UI
+    // simply don't apply to this format and are left at their defaults.
+    // The format has no weather columns (wind/current/waves) and no COG,
+    // so COG is derived from the bearing to the next waypoint so the boat
+    // icon still points the right way.
+    function parseBvsXML(text: string): any[] {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(text, 'application/xml');
+        if (doc.querySelector('parsererror')) return [];
+
+        const positions = Array.from(doc.querySelectorAll('TrackInfo > Position'));
+        const waypoints = [];
+
+        for (const pos of positions) {
+            const latAttr  = pos.getAttribute('Lat');
+            const lonAttr  = pos.getAttribute('Lon');
+            const dateAttr = pos.getAttribute('Date');
+            if (latAttr === null || lonAttr === null || dateAttr === null) continue;
+
+            const lat  = parseFloat(latAttr);
+            const lon  = parseFloat(lonAttr);
+            const time = Date.parse(dateAttr);
+            if (isNaN(lat) || isNaN(lon) || isNaN(time)) continue;
+
+            // ControlType="SC" (Speed Control) legs carry the planned speed
+            // in ControlValue — use it as SOG when present.
+            const controlType  = pos.getAttribute('ControlType');
+            const controlValue = pos.getAttribute('ControlValue');
+            const sog = (controlType === 'SC' && controlValue) ? cleanNum(controlValue) : 0;
+
+            const label = pos.getAttribute('Name') || pos.getAttribute('Position')
+                       || pos.getAttribute('Type') || '';
+
+            waypoints.push({
+                lat, lon, time,
+                sog, cog: 0,
+                tws: 0, twd: 0, twa: 0,
+                cs: 0, cd: 0, twh: 0, pwd: 0,
+                label
+            });
+        }
+
+        waypoints.sort((a, b) => a.time - b.time);
+
+        for (let i = 0; i < waypoints.length; i++) {
+            if (i < waypoints.length - 1) {
+                waypoints[i].cog = trueBearing(
+                    waypoints[i].lat, waypoints[i].lon,
+                    waypoints[i + 1].lat, waypoints[i + 1].lon
+                );
+            } else if (waypoints.length > 1) {
+                waypoints[i].cog = trueBearing(
+                    waypoints[i - 1].lat, waypoints[i - 1].lon,
+                    waypoints[i].lat, waypoints[i].lon
+                );
+            }
+        }
+
+        return waypoints;
+    }
+
     function detectFormat(header: string[]): string {
         const lower = header.map(h => h.toLowerCase());
         if (lower.includes('wp') && lower.includes('brake power')) return 'tactics';
@@ -782,6 +849,10 @@
                     const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
                     waypoints = parseAdrenaXLSX(data);
                     format = 'adrena';
+                } else if (file.name.endsWith('.bvs')) {
+                    const text = await file.text();
+                    waypoints = parseBvsXML(text);
+                    format = 'bvs';
                 } else {
                     const result = await parseFile(file);
                     waypoints = result.waypoints;
@@ -874,6 +945,10 @@
                 const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
                 waypoints = parseAdrenaXLSX(data);
                 format = 'adrena';
+            } else if (route.rawFile.name.endsWith('.bvs')) {
+                const text = await route.rawFile.text();
+                waypoints = parseBvsXML(text);
+                format = 'bvs';
             } else {
                 const result = await parseFile(route.rawFile, route.format);
                 waypoints = result.waypoints;
