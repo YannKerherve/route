@@ -490,26 +490,64 @@
     // -------------------------------------------------------------------
     // Source files store longitude clamped to [-180, 180], so a route
     // crossing the date line jumps straight from ~+180 to ~-180 (or vice
-    // versa) between two consecutive waypoints. Drawn as-is, that reads as
-    // a ~350° jump: Leaflet's polyline/bounds/interpolation all just
-    // connect the two raw points with a straight line, which draws all
-    // the way across the map instead of the short hop across the line.
+    // versa) between two consecutive waypoints.
     //
-    // Fix: once per route, walk the waypoints in order and add/subtract
-    // 360° whenever a step would exceed 180°, so longitude becomes a
-    // continuous (unwrapped) sequence — e.g. ...,178, 179, -180 becomes
-    // ...,178, 179, 180. Leaflet is fine with longitudes outside
-    // [-180, 180]; it keeps panning the world rather than wrapping, so a
-    // continuous polyline/marker position there renders correctly and
-    // fitBounds() computes the right box. This also makes the existing
-    // plain linear interpolation of lon in getInterpolatedPosition()
-    // correct, since there is no more wraparound to account for.
-    function unwrapLongitudes(waypoints: any[]): void {
-        for (let i = 1; i < waypoints.length; i++) {
-            let diff = waypoints[i].lon - waypoints[i - 1].lon;
-            while (diff > 180)  { waypoints[i].lon -= 360; diff = waypoints[i].lon - waypoints[i - 1].lon; }
-            while (diff < -180) { waypoints[i].lon += 360; diff = waypoints[i].lon - waypoints[i - 1].lon; }
+    // IMPORTANT: waypoints[].lon is intentionally left untouched (never
+    // permanently shifted by ±360). An earlier version of this fix
+    // "unwrapped" the whole route in place once at parse time (adding
+    // -360 after the crossing and carrying that offset through every
+    // later point). That drew a continuous line correctly, but it also
+    // meant every waypoint AFTER the crossing (e.g. the Japan landfall at
+    // the end of a transpacific route) was stored ~360° away from its
+    // real position. Leaflet/MapLibre only render that "other world
+    // copy" when the view has actually panned there — zooming in on the
+    // real Japan coastline (lon ≈ +140) no longer contains those shifted
+    // points, so the whole route silently vanished. Keeping lon at its
+    // real, original value means every point is always where it
+    // geographically belongs, at any zoom or pan position.
+    //
+    // Instead, the three functions below solve each symptom locally,
+    // without mutating stored coordinates:
+    //  - splitAtAntimeridian(): breaks a polyline into separate segments
+    //    wherever a step would exceed 180°, instead of drawing one long
+    //    segment straight across the map. This leaves a small visual gap
+    //    exactly at the date line, which is normal/expected.
+    //  - lonLerp(): interpolates longitude the short way across the date
+    //    line (mirrors shortestAngleLerp(), already used for COG), so the
+    //    boat icon doesn't briefly jump across the map mid-crossing.
+    //  - unwrappedBoundsLatLngs(): a private, throwaway unwrapped copy of
+    //    the route's coordinates used only to compute correct zoom-to-fit
+    //    bounds — never stored, never drawn.
+
+    function splitAtAntimeridian(latLngs: [number, number][]): [number, number][][] {
+        const segments: [number, number][][] = [];
+        let current: [number, number][] = [];
+        for (let i = 0; i < latLngs.length; i++) {
+            if (i > 0 && Math.abs(latLngs[i][1] - latLngs[i - 1][1]) > 180) {
+                segments.push(current);
+                current = [];
+            }
+            current.push(latLngs[i]);
         }
+        if (current.length > 0) segments.push(current);
+        return segments;
+    }
+
+    function lonLerp(lonA: number, lonB: number, ratio: number): number {
+        let diff = lonB - lonA;
+        if (diff > 180) diff -= 360;
+        else if (diff < -180) diff += 360;
+        return ((lonA + diff * ratio + 540) % 360) - 180;
+    }
+
+    function unwrappedBoundsLatLngs(waypoints: any[]): [number, number][] {
+        const out: [number, number][] = waypoints.map(w => [w.lat, w.lon]);
+        for (let i = 1; i < out.length; i++) {
+            let diff = out[i][1] - out[i - 1][1];
+            while (diff > 180)  { out[i][1] -= 360; diff = out[i][1] - out[i - 1][1]; }
+            while (diff < -180) { out[i][1] += 360; diff = out[i][1] - out[i - 1][1]; }
+        }
+        return out;
     }
 
     // -------------------------------------------------------------------
@@ -626,7 +664,6 @@
         }
 
         fixTimestampRollover(waypoints);
-        unwrapLongitudes(waypoints);
         return waypoints;
     }
 
@@ -669,7 +706,6 @@
         }
 
         fixTimestampRollover(waypoints);
-        unwrapLongitudes(waypoints);
         return waypoints;
     }
 
@@ -764,7 +800,6 @@
         }
 
         fixTimestampRollover(waypoints);
-        unwrapLongitudes(waypoints);
         return waypoints;
     }
 
@@ -772,9 +807,16 @@
     // produced by TrackInfo/Position elements). Unlike the CSV/XLSX formats
     // above, coordinates are already plain decimal degrees (Lat/Lon
     // attributes) and every Date carries its own explicit UTC offset
-    // (e.g. "2026-09-17T21:12:00-00:00"), so there is no ambiguous local
-    // time to detect or shift here — the CSV timezone controls in the UI
-    // simply don't apply to this format and are left at their defaults.
+    // (e.g. "2026-09-17T21:12:00-00:00"), so Date.parse() already returns
+    // the correct absolute UTC instant on its own. Even so, the time is
+    // still run through applyOffset() like every other format: the CSV
+    // timezone / manual offset controls in the UI are a single shared
+    // setting applied to every loaded route, and they need to keep working
+    // uniformly no matter which file format a given route came from
+    // (e.g. to correct a known reporting offset, or to line this route up
+    // with another loaded route). detectedTz stays null for BVS — the
+    // format carries its own offset already, so there's nothing to
+    // auto-detect — but the manual controls still apply on top.
     // The format has no weather columns (wind/current/waves) and no COG,
     // so COG is derived from the bearing to the next waypoint so the boat
     // icon still points the right way.
@@ -792,10 +834,11 @@
             const dateAttr = pos.getAttribute('Date');
             if (latAttr === null || lonAttr === null || dateAttr === null) continue;
 
-            const lat  = parseFloat(latAttr);
-            const lon  = parseFloat(lonAttr);
-            const time = Date.parse(dateAttr);
-            if (isNaN(lat) || isNaN(lon) || isNaN(time)) continue;
+            const lat     = parseFloat(latAttr);
+            const lon     = parseFloat(lonAttr);
+            const rawTime = Date.parse(dateAttr);
+            if (isNaN(lat) || isNaN(lon) || isNaN(rawTime)) continue;
+            const time = applyOffset(rawTime);
 
             // ControlType="SC" (Speed Control) legs carry the planned speed
             // in ControlValue — use it as SOG when present.
@@ -816,12 +859,6 @@
         }
 
         waypoints.sort((a, b) => a.time - b.time);
-
-        // Unwrap first: the route below (GC5 @ -180°, GC6 @ +170°...) is a
-        // real-world example of a date-line crossing, and doing this before
-        // the COG loop keeps things simple — trueBearing() is unaffected
-        // either way since sin/cos of (lon2 - lon1) are 360°-periodic.
-        unwrapLongitudes(waypoints);
 
         for (let i = 0; i < waypoints.length; i++) {
             if (i < waypoints.length - 1) {
@@ -1020,11 +1057,14 @@
         routeLayers[idx].clearLayers();
 
         const latLngs = route.waypoints.map(w => [w.lat, w.lon]);
-        L.polyline(latLngs, {
-            color: route.color,
-            weight: 2,
-            opacity: 0.7
-        }).addTo(routeLayers[idx]);
+        splitAtAntimeridian(latLngs).forEach(seg => {
+            if (seg.length < 2) return;
+            L.polyline(seg, {
+                color: route.color,
+                weight: 2,
+                opacity: 0.7
+            }).addTo(routeLayers[idx]);
+        });
 
         route.waypoints.forEach((w, i) => {
             if (i % 5 === 0) {
@@ -1066,7 +1106,7 @@
         const ratio = (ts - a.time) / (b.time - a.time);
         return {
             lat:   a.lat   + (b.lat   - a.lat)   * ratio,
-            lon:   a.lon   + (b.lon   - a.lon)    * ratio,
+            lon:   lonLerp(a.lon, b.lon, ratio),
             cog:   shortestAngleLerp(a.cog, b.cog, ratio),
             sog:   a.sog   + (b.sog   - a.sog)    * ratio,
             tws:   a.tws   + (b.tws   - a.tws)    * ratio,
