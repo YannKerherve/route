@@ -486,68 +486,67 @@
     }
 
     // -------------------------------------------------------------------
-    // ANTIMERIDIAN (180° DATE LINE) FIX
+    // ANTIMERIDIAN (180° DATE LINE) FIX — world-copy replication
     // -------------------------------------------------------------------
-    // Source files store longitude clamped to [-180, 180], so a route
-    // crossing the date line jumps straight from ~+180 to ~-180 (or vice
-    // versa) between two consecutive waypoints.
+    // This map scrolls seamlessly forever east/west, like most weather
+    // globes (Windy included): there's no hard edge at ±180°, the world
+    // just repeats. That has a consequence for anything drawn with plain
+    // lat/lon numbers: a vector layer is only visible if ITS OWN longitude
+    // numbers fall inside whichever copy of the world the viewport
+    // currently sits on.
     //
-    // IMPORTANT: waypoints[].lon is intentionally left untouched (never
-    // permanently shifted by ±360). An earlier version of this fix
-    // "unwrapped" the whole route in place once at parse time (adding
-    // -360 after the crossing and carrying that offset through every
-    // later point). That drew a continuous line correctly, but it also
-    // meant every waypoint AFTER the crossing (e.g. the Japan landfall at
-    // the end of a transpacific route) was stored ~360° away from its
-    // real position. Leaflet/MapLibre only render that "other world
-    // copy" when the view has actually panned there — zooming in on the
-    // real Japan coastline (lon ≈ +140) no longer contains those shifted
-    // points, so the whole route silently vanished. Keeping lon at its
-    // real, original value means every point is always where it
-    // geographically belongs, at any zoom or pan position.
+    // Two earlier attempts both failed because of this:
+    //  1. Drawing raw, un-touched coordinates: a route crossing the date
+    //     line jumps from ~+180 to ~-180 between two consecutive
+    //     waypoints, which reads as a ~350° jump — Leaflet just connects
+    //     the two points with a straight line straight across the map.
+    //  2. Permanently "unwrapping" the whole route once (adding ∓360°
+    //     after the crossing and carrying that offset through every later
+    //     point): this draws a correct, continuous line, but it only
+    //     lives in ONE specific numeric range. E.g. a transpacific route's
+    //     Japan landfall would end up stored at lon ≈ -220° instead of its
+    //     real +140° — invisible unless the viewport happened to have
+    //     scrolled to that exact copy of the world. Zooming in normally on
+    //     Japan (lon ≈ +140, the "primary" copy) showed nothing.
     //
-    // Instead, the three functions below solve each symptom locally,
-    // without mutating stored coordinates:
-    //  - splitAtAntimeridian(): breaks a polyline into separate segments
-    //    wherever a step would exceed 180°, instead of drawing one long
-    //    segment straight across the map. This leaves a small visual gap
-    //    exactly at the date line, which is normal/expected.
-    //  - lonLerp(): interpolates longitude the short way across the date
-    //    line (mirrors shortestAngleLerp(), already used for COG), so the
-    //    boat icon doesn't briefly jump across the map mid-crossing.
-    //  - unwrappedBoundsLatLngs(): a private, throwaway unwrapped copy of
-    //    the route's coordinates used only to compute correct zoom-to-fit
-    //    bounds — never stored, never drawn.
+    // Fix: unwrap the route into ONE continuous path as in attempt 2 (so
+    // it's a single unbroken line, not two disconnected halves), but then
+    // draw that SAME continuous path three times, offset by -360°, 0° and
+    // +360°. Whichever copy of the world the viewport is currently showing
+    // (whether the person scrolled west from the Americas or east from
+    // Asia to reach the same visual spot), one of the three copies lands
+    // in-range and is visible. The extra two copies fall far outside any
+    // sane viewport and cost nothing to have present but off-screen.
 
-    function splitAtAntimeridian(latLngs: [number, number][]): [number, number][][] {
-        const segments: [number, number][][] = [];
-        let current: [number, number][] = [];
-        for (let i = 0; i < latLngs.length; i++) {
-            if (i > 0 && Math.abs(latLngs[i][1] - latLngs[i - 1][1]) > 180) {
-                segments.push(current);
-                current = [];
-            }
-            current.push(latLngs[i]);
+    const WORLD_COPY_OFFSETS = [-360, 0, 360];
+
+    // Rewrites a path's longitudes so no consecutive step exceeds 180°
+    // (a continuous, unwrapped copy of the path). Never mutates the input
+    // — waypoints[].lon itself always keeps its real, original value.
+    function continuousLonPath(points: { lat: number, lon: number }[]): { lat: number, lon: number }[] {
+        const out = points.map(p => ({ lat: p.lat, lon: p.lon }));
+        for (let i = 1; i < out.length; i++) {
+            let diff = out[i].lon - out[i - 1].lon;
+            while (diff > 180)  { out[i].lon -= 360; diff = out[i].lon - out[i - 1].lon; }
+            while (diff < -180) { out[i].lon += 360; diff = out[i].lon - out[i - 1].lon; }
         }
-        if (current.length > 0) segments.push(current);
-        return segments;
+        return out;
     }
 
+    // Interpolates longitude the short way across the date line (mirrors
+    // shortestAngleLerp(), already used for COG). Deliberately does NOT
+    // wrap the result back into [-180, 180] — the returned value must stay
+    // continuous with lonA (a real waypoint coordinate), so it can be
+    // unwrapped/replicated the same way as everything else. Wrapping it
+    // back here was the earlier bug: it made the boat's own current
+    // position snap ~360° right at the crossing, which — connected to its
+    // trail by a single straight polyline — looked like the boat had
+    // "gone all the way around" the map.
     function lonLerp(lonA: number, lonB: number, ratio: number): number {
         let diff = lonB - lonA;
         if (diff > 180) diff -= 360;
         else if (diff < -180) diff += 360;
-        return ((lonA + diff * ratio + 540) % 360) - 180;
-    }
-
-    function unwrappedBoundsLatLngs(waypoints: any[]): [number, number][] {
-        const out: [number, number][] = waypoints.map(w => [w.lat, w.lon]);
-        for (let i = 1; i < out.length; i++) {
-            let diff = out[i][1] - out[i - 1][1];
-            while (diff > 180)  { out[i][1] -= 360; diff = out[i][1] - out[i - 1][1]; }
-            while (diff < -180) { out[i][1] += 360; diff = out[i][1] - out[i - 1][1]; }
-        }
-        return out;
+        return lonA + diff * ratio;
     }
 
     // -------------------------------------------------------------------
@@ -1040,7 +1039,8 @@
     }
 
     function fitRoute(idx: number) {
-        const latLngs = routes[idx].waypoints.map(w => [w.lat, w.lon]);
+        const continuous = continuousLonPath(routes[idx].waypoints);
+        const latLngs = continuous.map(w => [w.lat, w.lon]);
         map.fitBounds(L.polyline(latLngs).getBounds());
     }
 
@@ -1056,26 +1056,30 @@
         const route = routes[idx];
         routeLayers[idx].clearLayers();
 
-        const latLngs = route.waypoints.map(w => [w.lat, w.lon]);
-        splitAtAntimeridian(latLngs).forEach(seg => {
-            if (seg.length < 2) return;
-            L.polyline(seg, {
+        // See the ANTIMERIDIAN note above: draw one continuous path, but
+        // replicate it at -360°/0°/+360° so it's visible no matter which
+        // copy of the world the map is currently scrolled to.
+        const continuous = continuousLonPath(route.waypoints);
+
+        WORLD_COPY_OFFSETS.forEach(offset => {
+            const latLngs = continuous.map(w => [w.lat, w.lon + offset]);
+            L.polyline(latLngs, {
                 color: route.color,
                 weight: 2,
                 opacity: 0.7
             }).addTo(routeLayers[idx]);
-        });
 
-        route.waypoints.forEach((w, i) => {
-            if (i % 5 === 0) {
-                L.circleMarker([w.lat, w.lon], {
-                    radius: 2,
-                    color: route.color,
-                    fillColor: route.color,
-                    fillOpacity: 0.6,
-                    weight: 1
-                }).addTo(routeLayers[idx]);
-            }
+            continuous.forEach((w, i) => {
+                if (i % 5 === 0) {
+                    L.circleMarker([w.lat, w.lon + offset], {
+                        radius: 2,
+                        color: route.color,
+                        fillColor: route.color,
+                        fillOpacity: 0.6,
+                        weight: 1
+                    }).addTo(routeLayers[idx]);
+                }
+            });
         });
     }
 
@@ -1106,6 +1110,8 @@
         const ratio = (ts - a.time) / (b.time - a.time);
         return {
             lat:   a.lat   + (b.lat   - a.lat)   * ratio,
+            // Continuous with a.lon (not wrapped back into [-180, 180]) —
+            // see lonLerp()'s comment above for why that matters here.
             lon:   lonLerp(a.lon, b.lon, ratio),
             cog:   shortestAngleLerp(a.cog, b.cog, ratio),
             sog:   a.sog   + (b.sog   - a.sog)    * ratio,
@@ -1124,34 +1130,51 @@
 
             boatLayers[idx].clearLayers();
 
-            const pastPoints = route.waypoints.filter(p => p.time < ts).map(p => [p.lat, p.lon]);
-            pastPoints.push([current.lat, current.lon]);
-
-            L.polyline(pastPoints, {
-                color: route.color,
-                weight: 4,
-                opacity: 0.9
-            }).addTo(boatLayers[idx]);
-
-            const boatIcon = L.divIcon({
-                className: '',
-                html: `<svg viewBox="0 0 100 100" width="30" height="30" style="transform: rotate(${current.cog}deg);">
-                        <polygon points="50,0 90,100 50,80 10,100" fill="${route.color}" stroke="white" stroke-width="5"/>
-                       </svg>`,
-                iconSize: [30, 30],
-                iconAnchor: [15, 15]
-            });
+            // current.lon is already continuous with the last past
+            // waypoint (see getInterpolatedPosition), so appending it
+            // before unwrapping keeps the whole trail — including any
+            // earlier date-line crossings — as one continuous path.
+            const pastRaw = route.waypoints
+                .filter(p => p.time < ts)
+                .map(p => ({ lat: p.lat, lon: p.lon }));
+            pastRaw.push({ lat: current.lat, lon: current.lon });
+            const pastContinuous = continuousLonPath(pastRaw);
 
             const csvTimeStr = toCsvDisplayTime(ts);
-            L.marker([current.lat, current.lon], { icon: boatIcon })
-                .addTo(boatLayers[idx])
-                .bindPopup(`
-                    <b>${route.name}</b><br>
-                    SOG: ${current.sog.toFixed(1)} kt<br>
-                    TWS: ${current.tws.toFixed(1)} kt<br>
-                    <small>UTC: ${new Date(ts).toISOString().slice(11,19)}</small><br>
-                    <small>CSV (UTC${csvTimezoneOffset + manualOffset >= 0 ? '+' : ''}${csvTimezoneOffset + manualOffset}): ${csvTimeStr}</small>
-                `);
+            const popupHtml = `
+                <b>${route.name}</b><br>
+                SOG: ${current.sog.toFixed(1)} kt<br>
+                TWS: ${current.tws.toFixed(1)} kt<br>
+                <small>UTC: ${new Date(ts).toISOString().slice(11,19)}</small><br>
+                <small>CSV (UTC${csvTimezoneOffset + manualOffset >= 0 ? '+' : ''}${csvTimezoneOffset + manualOffset}): ${csvTimeStr}</small>
+            `;
+
+            // Same world-copy replication as drawFullRoute(): draw the
+            // trail and place the boat icon at -360°/0°/+360° so both stay
+            // visible regardless of which copy of the world is on screen.
+            WORLD_COPY_OFFSETS.forEach(offset => {
+                const pastPoints = pastContinuous.map(p => [p.lat, p.lon + offset]);
+
+                L.polyline(pastPoints, {
+                    color: route.color,
+                    weight: 4,
+                    opacity: 0.9
+                }).addTo(boatLayers[idx]);
+
+                const boatIcon = L.divIcon({
+                    className: '',
+                    html: `<svg viewBox="0 0 100 100" width="30" height="30" style="transform: rotate(${current.cog}deg);">
+                            <polygon points="50,0 90,100 50,80 10,100" fill="${route.color}" stroke="white" stroke-width="5"/>
+                           </svg>`,
+                    iconSize: [30, 30],
+                    iconAnchor: [15, 15]
+                });
+
+                const lastPoint = pastPoints[pastPoints.length - 1];
+                L.marker(lastPoint, { icon: boatIcon })
+                    .addTo(boatLayers[idx])
+                    .bindPopup(popupHtml);
+            });
         });
     }
 
