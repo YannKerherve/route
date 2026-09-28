@@ -10,7 +10,7 @@ const config: ExternalPluginConfig = {
     repository: 'https://github.com/YannKerherve/route',
     desktopUI: 'embedded',
     mobileUI: 'small',
-    routerPath: '/my-plugin',
+    routerPath: '/nav-tools',
 }; 
 
 export default config;
